@@ -342,6 +342,7 @@ function h(tag,attrs,...kids){
     else if(k==='html') e.innerHTML=v;
     else if(k==='text') e.textContent=v;
     else if(k.startsWith('on')) e.addEventListener(k.slice(2),v);
+    else if(k==='value'&&tag==='textarea') e.value=v;
     else if(v===true) e.setAttribute(k,''); else e.setAttribute(k,v);
   }
   for(const c of kids.flat(Infinity)){ if(c==null||c===false) continue; e.append(c.nodeType?c:document.createTextNode(String(c))); }
@@ -487,7 +488,13 @@ const AVATARS=[
  {n:'Cherry',bg:'#f7d9e8',r:["......gg..",".....g.gg.","....g...g.","...g....g.",".rr....rr.","rwrr..rwrr","rrrr..rrrr",".rr....rr.","..........",".........."]},
  {n:'Robot',bg:'#2a8f8a',r:["....kk....","....ee....",".eeeeeeee.",".ebbeebbe.",".eeeeeeee.",".ekkkkkke.",".eeeeeeee.","..eeeeee..",".e.eeee.e.","..e....e.."]},
  {n:'Mushroom',bg:'#2f7a3f',r:["...rrrr...","..rwwrrr..",".rrwwrrwwr","rrrrrrrwwr","rwwrrrrrrr","...wwww...","..wwkwkw..","..wwwwww..","...wwww...",".........."]},
- {n:'Duck',bg:'#4aa8ff',r:["..........","...yyy....","..yykyy...",".ooyyyy...","..oyyyyyy.","...yyyyyyy","...yyyyyyy","....yyyyy.","..........",".........."]}
+ {n:'Duck',bg:'#4aa8ff',r:["..........","...yyy....","..yykyy...",".ooyyyy...","..oyyyyyy.","...yyyyyyy","...yyyyyyy","....yyyyy.","..........",".........."]},
+ {n:'Unicorn',bg:'#4b2f86',r:["........y.",".......yo.","...pcwyw..","..pcwwwww.",".pcwwwkww.",".cpwwwwwww","pcwwwwwwwp","pc.wwww...","p..wwww...","...wwww..."]},
+ {n:'Fish',bg:'#1d5fb0',r:["........c.","...oo..c..","..ooooo.oo",".owkoooooo","ooooooooo.",".ooyyoooo.","..ooooo.oo","...oo.....","..........",".........."]},
+ {n:'Plant',bg:'#f3e7c8',r:["....l.....",".l..gl..l.",".gl.gg.lg.","..gggggg..","....gg....",".nnnnnnnn.","..oooooo..","..oooooo..","...oooo...",".........."]},
+ {n:'Sunflower',bg:'#7fc9ff',r:["...y..y...",".y.yyyy.y.","..ynnnny..","yyynnnnyyy","..ynnnny..",".y.yyyy.y.","....gg....","..llgg....","....ggll..","....gg...."]},
+ {n:'Cloud',bg:'#5aa8ff',r:["..........","....www...","..wwwwwww.",".wwwwwwwww","wwwkwwkwww","wwpwwwwpww","wwwwkkwwww",".wwwwwwww.","..eeeeee..",".........."]},
+ {n:'Anonymous',bg:'#7d8798',r:["..........","...wwww...","..wwwwww..","..wwwwww..","..wwwwww..","...wwww...","....ww....",".wwwwwwww.","wwwwwwwwww","wwwwwwwwww"]}
 ];
 const _avc=[];
 const avCanvas=i=>{const a=AVATARS[i%AVATARS.length];return spriteCanvas(a.r,a.bg,1)};
@@ -3069,7 +3076,7 @@ addCSS(`
 .dp-kraft{background:repeating-linear-gradient(45deg,rgba(0,0,0,.035) 0 2px,transparent 2px 5px),#d7b98c;color:#3a2410}
 .dp-floral{background:radial-gradient(circle at 20% 20%,#ffb6d3 5px,#ffe27a 6px 8px,transparent 9px) 0 0/90px 90px,radial-gradient(circle at 70% 65%,#c3a6ff 5px,#fff 6px 7px,transparent 8px) 0 0/90px 90px,#fff7fb}
 .dp-blank{background:#fffefa}
-.dstk{position:absolute;cursor:grab;user-select:none;touch-action:none;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3))}.dstk.picked{outline:2px dashed #ff4fa8;outline-offset:3px}.dstk.tape{height:22px;opacity:.85}.dstk img{display:block;border:5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);max-width:none;pointer-events:none}
+.dstk{position:absolute;cursor:grab;user-select:none;touch-action:none;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.3))}.dstk.picked{outline:2px dashed #ff4fa8;outline-offset:3px}.dstk .dx{display:none;position:absolute;top:-14px;right:-14px;width:22px;height:22px;padding:0;border-radius:50%;border:2px solid #fff;background:#e0443e;color:#fff;font:700 12px/18px sans-serif;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.4);z-index:2;transform:none}.dstk.picked .dx{display:block}.dstk.tape{height:22px;opacity:.85}.dstk img{display:block;border:5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);max-width:none;pointer-events:none}
 .lockc{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;text-align:center}
 .cover{width:min(360px,92%);border-radius:18px;padding:22px 20px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.4);background:radial-gradient(circle at 20% 15%,rgba(255,255,255,.55) 0 10%,transparent 11%),radial-gradient(circle at 85% 80%,rgba(255,255,255,.3) 0 14%,transparent 15%),linear-gradient(150deg,#ff9bd5,#c06bff 55%,#4aaee8);border:3px solid #fff;box-shadow:0 8px 20px rgba(80,0,120,.4),inset 0 2px 0 rgba(255,255,255,.6)}
 .cover h1{margin:0 0 6px;font:800 30px var(--ui)}.pdots{display:flex;gap:10px;justify-content:center;margin:10px 0}.pdots i{width:16px;height:16px;border-radius:50%;border:2px solid #fff;background:rgba(255,255,255,.2)}.pdots i.f{background:#fff}
@@ -3155,6 +3162,7 @@ APPS.diary={title:'My Diary',icon:'diary',w:900,h:640,minW:340,minH:400,single:t
     root.append(h('div',{class:'bar'},icn('diary',26),h('h2',{text:'My Diary'})),h('div',{class:'lockc'},cover,forgot,h('div',{style:'font-size:12px;opacity:.7;max-width:340px',text:D.pin?'A local lock for a shared computer, not bank-grade security.':'Tip: lock it from the "Diary lock" menu.'})));
     const kd=e=>{if(!root.isConnected){document.removeEventListener('keydown',kd);return}if(!win.el.classList.contains('active')||!D.pin||unlocked)return;if(/^[0-9]$/.test(e.key))press(e.key);else if(e.key==='Backspace')press('⌫')};document.addEventListener('keydown',kd);
   }
+  const keepScroll=fn=>{const m=root.querySelector('.dy .main'),y=m?m.scrollTop:0;fn();const m2=root.querySelector('.dy .main');if(m2)m2.scrollTop=y};
   const newPage=()=>{const e={id:uid(),ts:Date.now(),title:'',text:'',mood:'',page:cur?cur.page:'lined',layout:'free',font:cur?cur.font:DFONTS[0][0],ink:'',size:16,deco:[],daily:{h:'',g:'',t:''},list:[{t:'',done:false}]};D.entries.unshift(e);cur=e;saveS();render()};
   function mainView(){
     if(!cur)cur=D.entries[0]||null;
@@ -3174,35 +3182,42 @@ APPS.diary={title:'My Diary',icon:'diary',w:900,h:640,minW:340,minH:400,single:t
     const page=h('div',{class:'dpage dp-'+e.page,style:`font-family:${e.font};font-size:${e.size}px;${e.ink?'color:'+e.ink:''}`});
     const ti=h('input',{class:'ttl',value:e.title,placeholder:'Title…','aria-label':'Page title',maxlength:60,oninput:ev=>{e.title=ev.target.value;touch()}});
     const mkTa=(get,set,ph,cls='')=>h('textarea',{class:cls,value:get(),placeholder:ph,oninput:ev=>{set(ev.target.value);touch()},'aria-label':ph});
-    page.append(h('div',{class:'dt'},h('span',{text:fmtDate(e.ts)+' · '+fmtTime(e.ts)}),h('span',{style:'font-size:20px',text:e.mood||''})),ti);
+    const moodEl=h('span',{style:'font-size:20px',text:e.mood||''});
+    page.append(h('div',{class:'dt'},h('span',{text:fmtDate(e.ts)+' · '+fmtTime(e.ts)}),moodEl),ti);
     if(e.layout==='daily'){e.daily=e.daily||{h:'',g:'',t:''};page.append(h('div',{class:'q',text:'Today’s highlight'}),mkTa(()=>e.daily.h,v=>e.daily.h=v,'What was the best part of today?','sm'),h('div',{class:'q',text:'I am grateful for…'}),mkTa(()=>e.daily.g,v=>e.daily.g=v,'Three little things','sm'),h('div',{class:'q',text:'Tomorrow I want to…'}),mkTa(()=>e.daily.t,v=>e.daily.t=v,'A tiny plan','sm'),h('div',{class:'q',text:'Anything else'}),mkTa(()=>e.text,v=>e.text=v,'Write freely…','sm'))}
     else if(e.layout==='list'){e.list=e.list||[{t:'',done:false}];const box=h('div');const dr=()=>{box.innerHTML='';e.list.forEach((it,i)=>box.append(h('div',{class:'ck'+(it.done?' d':'')},h('input',{type:'checkbox',checked:it.done,'aria-label':'Done',onchange:ev=>{it.done=ev.target.checked;saveS();dr()}}),h('input',{type:'text',value:it.t,placeholder:'Something to do…',oninput:ev=>{it.t=ev.target.value;saveS()},onkeydown:ev=>{if(ev.key==='Enter'){e.list.splice(i+1,0,{t:'',done:false});saveS();dr();setTimeout(()=>box.querySelectorAll('input[type=text]')[i+1]?.focus(),0)}}}),h('button',{class:'gl sm','aria-label':'Remove item',onclick:()=>{e.list.splice(i,1);if(!e.list.length)e.list.push({t:'',done:false});saveS();dr()}},'✕'))))};dr();page.append(box,h('button',{class:'gl sm',onclick:()=>{e.list.push({t:'',done:false});saveS();dr()}},'+ item'),h('div',{class:'q',text:'Notes'}),mkTa(()=>e.text,v=>e.text=v,'Anything else…','sm'))}
     else if(e.layout==='scrap'){page.style.minHeight='520px';page.append(mkTa(()=>e.text,v=>e.text=v,'Add a caption… then decorate with photos and stickers!','sm'))}
     else page.append(mkTa(()=>e.text,v=>e.text=v,'Dear diary…'));
     const layer=h('div',{style:'position:absolute;inset:0;pointer-events:none'});page.append(layer);
-    function drawDeco(){layer.innerHTML='';e.deco.forEach((d,i)=>{const el=h('div',{class:'dstk'+(d.k==='tape'?' tape':'')+(selStk===d?' picked':''),style:`left:${d.x}%;top:${d.y}%;pointer-events:auto;transform:rotate(${d.r||0}deg);${d.k==='stk'?`font-size:${d.s||40}px;color:${d.c}`:d.k==='tape'?`width:${d.s||90}px;background:repeating-linear-gradient(45deg,${d.c} 0 8px,${d.c2} 8px 16px)`:''}`,title:'Drag to move. Double-click to remove.'});
+    let rmBtn=null;
+    const pick=d=>{selStk=d;layer.querySelectorAll('.dstk').forEach(x=>x.classList.toggle('picked',x._d===d));if(rmBtn)rmBtn.disabled=!d};
+    const removeStk=d=>{const i=e.deco.indexOf(d);if(i<0)return;e.deco.splice(i,1);if(selStk===d)selStk=null;saveS();drawDeco();if(rmBtn)rmBtn.disabled=!selStk;sfx('click')};
+    function drawDeco(){layer.innerHTML='';e.deco.forEach(d=>{const el=h('div',{class:'dstk'+(d.k==='tape'?' tape':'')+(selStk===d?' picked':''),style:`left:${d.x}%;top:${d.y}%;pointer-events:auto;transform:rotate(${d.r||0}deg);${d.k==='stk'?`font-size:${d.s||40}px;color:${d.c}`:d.k==='tape'?`width:${d.s||90}px;background:repeating-linear-gradient(45deg,${d.c} 0 8px,${d.c2} 8px 16px)`:''}`,title:'Drag to move. Click to select, then use ✕ to delete.'});el._d=d;
       if(d.k==='stk')el.textContent=d.ch;else if(d.k==='img')el.append(h('img',{src:d.src,width:d.w||160,alt:'Photo'}));
-      el.addEventListener('pointerdown',ev=>{ev.preventDefault();selStk=d;el.setPointerCapture(ev.pointerId);const r=page.getBoundingClientRect(),sx=ev.clientX,sy=ev.clientY,ox=d.x,oy=d.y;layer.querySelectorAll('.dstk').forEach(x=>x.classList.remove('picked'));el.classList.add('picked');
-        const mv=m=>{d.x=clamp(ox+(m.clientX-sx)/r.width*100,-5,96);d.y=clamp(oy+(m.clientY-sy)/r.height*100,0,96);el.style.left=d.x+'%';el.style.top=d.y+'%'};const up=()=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);saveS()};el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up)});
-      el.addEventListener('dblclick',()=>{e.deco.splice(i,1);selStk=null;saveS();drawDeco()});
-      el.addEventListener('wheel',ev=>{ev.preventDefault();const f=ev.deltaY<0?1.08:.92;if(d.k==='stk')d.s=clamp((d.s||40)*f,16,160);else if(d.k==='img')d.w=clamp((d.w||160)*f,60,420);else d.s=clamp((d.s||90)*f,40,260);saveS();drawDeco()},{passive:false});
+      el.append(h('button',{class:'dx',title:'Delete this','aria-label':'Delete this sticker',onpointerdown:ev=>ev.stopPropagation(),onclick:ev=>{ev.stopPropagation();removeStk(d)}},'✕'));
+      el.addEventListener('pointerdown',ev=>{if(ev.button>0)return;ev.preventDefault();pick(d);el.setPointerCapture(ev.pointerId);const r=page.getBoundingClientRect(),sx=ev.clientX,sy=ev.clientY,ox=d.x,oy=d.y;
+        const mv=m=>{d.x=clamp(ox+(m.clientX-sx)/r.width*100,-5,96);d.y=clamp(oy+(m.clientY-sy)/r.height*100,0,96);el.style.left=d.x+'%';el.style.top=d.y+'%'};const up=()=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);saveS()};el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up)});
+      el.addEventListener('wheel',ev=>{if(selStk!==d)return;ev.preventDefault();const f=ev.deltaY<0?1.08:.92;if(d.k==='stk'){d.s=clamp((d.s||40)*f,16,160);el.style.fontSize=d.s+'px'}else if(d.k==='img'){d.w=clamp((d.w||160)*f,60,420);const im=el.querySelector('img');if(im)im.width=d.w}else{d.s=clamp((d.s||90)*f,40,260);el.style.width=d.s+'px'}saveS()},{passive:false});
       layer.append(el)})}
-    const place=d=>{e.deco.push({x:30+Math.random()*40,y:25+Math.random()*40,r:Math.round((Math.random()-.5)*30),...d});selStk=e.deco[e.deco.length-1];saveS();drawDeco();sfx('pop')};
+    page.addEventListener('pointerdown',ev=>{if(!ev.target.closest('.dstk'))pick(null)});
+    const kdel=ev=>{if(!root.isConnected||!page.isConnected){document.removeEventListener('keydown',kdel);return}if(!selStk||!win.el.classList.contains('active'))return;if((ev.key==='Delete'||ev.key==='Backspace')&&!/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'')){ev.preventDefault();removeStk(selStk)}};
+    document.addEventListener('keydown',kdel);
+    const place=d=>{e.deco.push({x:30+Math.random()*40,y:25+Math.random()*40,r:Math.round((Math.random()-.5)*30),...d});selStk=e.deco[e.deco.length-1];saveS();drawDeco();if(rmBtn)rmBtn.disabled=false;sfx('pop')};
     drawDeco();
     const grp=(l,...k)=>h('div',{class:'row'},h('span',{class:'lbl',text:l}),...k);
     const tools=h('div',{class:'dtool'},
-      grp('Paper',...PAGES.map(([k,n])=>h('button',{class:'pgsw'+(e.page===k?' on':''),title:n,'aria-label':n+' paper',style:'background:'+PGBG[k],onclick:()=>{e.page=k;saveS();render()}}))),
-      grp('Layout',h('select',{class:'sel','aria-label':'Page layout',onchange:ev=>{e.layout=ev.target.value;saveS();render()}},[['free','Free writing'],['daily','Daily page (prompts)'],['list','Checklist'],['scrap','Scrapbook']].map(([v,t])=>h('option',{value:v,selected:e.layout===v,text:t})))),
-      grp('Writing',h('select',{class:'sel','aria-label':'Font',onchange:ev=>{e.font=ev.target.value;saveS();render()}},DFONTS.map(([v,t])=>h('option',{value:v,selected:e.font===v,text:t}))),h('select',{class:'sel','aria-label':'Text size',onchange:ev=>{e.size=+ev.target.value;saveS();render()}},[[14,'Small'],[16,'Medium'],[19,'Large']].map(([v,t])=>h('option',{value:v,selected:e.size===v,text:t}))),
-        ...INKS.map(c=>h('button',{class:'ink'+(e.ink===c?' on':''),title:c||'Automatic colour','aria-label':c?'Ink '+c:'Automatic ink',style:'background:'+(c||'linear-gradient(135deg,#fff 50%,#222 50%)'),onclick:()=>{e.ink=c;saveS();render()}}))),
-      grp('Mood',...MOODS.map(([n,g])=>h('button',{class:'stkb',title:n,'aria-label':n,style:e.mood===g?'background:#ffe1f1;border-color:#ff4fa8':'',onclick:()=>{e.mood=e.mood===g?'':g;saveS();render()}},g))),
+      grp('Paper',...PAGES.map(([k,n])=>h('button',{class:'pgsw'+(e.page===k?' on':''),title:n,'aria-label':n+' paper',style:'background:'+PGBG[k],onclick:ev=>{e.page=k;page.className='dpage dp-'+k;ev.currentTarget.parentNode.querySelectorAll('.pgsw').forEach(b=>b.classList.toggle('on',b===ev.currentTarget));saveS()}}))),
+      grp('Layout',h('select',{class:'sel','aria-label':'Page layout',onchange:ev=>{e.layout=ev.target.value;saveS();keepScroll(render)}},[['free','Free writing'],['daily','Daily page (prompts)'],['list','Checklist'],['scrap','Scrapbook']].map(([v,t])=>h('option',{value:v,selected:e.layout===v,text:t})))),
+      grp('Writing',h('select',{class:'sel','aria-label':'Font',onchange:ev=>{e.font=ev.target.value;page.style.fontFamily=e.font;saveS()}},DFONTS.map(([v,t])=>h('option',{value:v,selected:e.font===v,text:t}))),h('select',{class:'sel','aria-label':'Text size',onchange:ev=>{e.size=+ev.target.value;page.style.fontSize=e.size+'px';saveS()}},[[14,'Small'],[16,'Medium'],[19,'Large']].map(([v,t])=>h('option',{value:v,selected:e.size===v,text:t}))),
+        ...INKS.map(c=>h('button',{class:'ink'+(e.ink===c?' on':''),title:c||'Automatic colour','aria-label':c?'Ink '+c:'Automatic ink',style:'background:'+(c||'linear-gradient(135deg,#fff 50%,#222 50%)'),onclick:ev=>{e.ink=c;page.style.color=c||'';ev.currentTarget.parentNode.querySelectorAll('.ink').forEach(b=>b.classList.toggle('on',b===ev.currentTarget));saveS()}}))),
+      grp('Mood',...MOODS.map(([n,g])=>h('button',{class:'stkb',title:n,'aria-label':n,style:e.mood===g?'background:#ffe1f1;border-color:#ff4fa8':'',onclick:ev=>{e.mood=e.mood===g?'':g;moodEl.textContent=e.mood;ev.currentTarget.parentNode.querySelectorAll('.stkb').forEach(b=>b.style.cssText=b.textContent===e.mood?'background:#ffe1f1;border-color:#ff4fa8':'');touch()}},g))),
       grp('Stickers',...STKS.map((c,i)=>h('button',{class:'stkb',style:'color:'+['#ff4fa8','#1f66d8','#2a9a3a','#e07b0a','#7a4fe0','#d6409a'][i%6],'aria-label':'Add sticker '+c,onclick:()=>place({k:'stk',ch:c,s:44,c:['#ff4fa8','#1f66d8','#2a9a3a','#e07b0a','#7a4fe0','#d6409a','#ffb400'][Math.floor(Math.random()*7)]})},c)),
         ...TAPES.map(([a,b])=>h('button',{class:'stkb',title:'Washi tape','aria-label':'Add tape',style:`background:repeating-linear-gradient(45deg,${a} 0 5px,${b} 5px 10px)`,onclick:()=>place({k:'tape',c:a,c2:b,s:100})})),
         h('button',{class:'gl sm',onclick:()=>{if(e.deco.filter(d=>d.k==='img').length>=6){dlg.alert('That is plenty of photos for one page!',{icon:'info'});return}const i=h('input',{type:'file',accept:'image/*',onchange:async()=>{if(!i.files[0])return;try{const im=await fileImg(i.files[0]),r=Math.min(1,260/Math.max(im.width,im.height)),c=mk(Math.round(im.width*r),Math.round(im.height*r));c.getContext('2d').drawImage(im,0,0,c.width,c.height);place({k:'img',src:c.toDataURL('image/jpeg',.72),w:Math.min(180,c.width)})}catch(er){dlg.alert('That file could not be opened as a picture.',{icon:'error'})}}});i.click()}},'+ Photo…'),
-        h('button',{class:'gl sm',disabled:!selStk,onclick:()=>{const i=e.deco.indexOf(selStk);if(i>=0){e.deco.splice(i,1);selStk=null;saveS();drawDeco()}}},'Remove selected')),
+        rmBtn=h('button',{class:'gl sm',disabled:!selStk,onclick:()=>{if(selStk)removeStk(selStk)}},'Delete selected')),
       h('div',{class:'row'},h('button',{class:'gl sm',onclick:()=>{const t=`${e.title||'Untitled'}\n${fmtDate(e.ts)}\n\n${e.layout==='daily'?`Highlight: ${e.daily.h}\nGrateful for: ${e.daily.g}\nTomorrow: ${e.daily.t}\n\n`:''}${e.layout==='list'?e.list.map(l=>(l.done?'[x] ':'[ ] ')+l.t).join('\n')+'\n\n':''}${e.text}`;exportFile((e.title||'diary-page').replace(/[\\/:*?"<>|]/g,'')+'.txt',new Blob([t],{type:'text/plain'}))}},'Export as text'),
         h('button',{class:'gl sm',onclick:async()=>{if(await dlg.confirm('Delete this diary page for good?',{icon:'warn',ok:'Delete page',cancel:'Keep it'})){D.entries=D.entries.filter(x=>x!==e);cur=D.entries[0]||null;saveS();render()}}},'Delete page')));
-    main.append(tools,page,h('div',{style:'font-size:12px;opacity:.7',text:'Tip: drag stickers and photos to move them, scroll the mouse wheel over one to resize it, double-click to remove it. Everything saves as you type.'}));
+    main.append(tools,page,h('div',{style:'font-size:12px;opacity:.7',text:'Tip: drag stickers and photos to move them. Click one to select it, then scroll the mouse wheel to resize it, or press ✕ (or the Delete key) to remove it. Everything saves as you type.'}));
   }
   render();
 }};

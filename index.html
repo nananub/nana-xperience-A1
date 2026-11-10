@@ -2438,6 +2438,29 @@ function animator(win,host){
     return encodeGIF(frames,W,W,Math.max(2,Math.round(100/A.fps)))}
   const saveGif=async()=>{const n=await askName('My animation');if(!n)return;const g=await makeGIF();const node=fsNew('artwork',{name:fsUnique('artwork',n+'.gif'),type:'image',mime:'image/gif',data:g});sfx('save');fsChanged();notify(`Saved "${node.name}" to My Artwork.`,{icon:'image',silent:true})};
   const dlGif=async()=>{const g=await makeGIF();exportFile('my-animation.gif',g)};
+  /* video: the browser records the animation frame by frame (MediaRecorder), no uploads, no server */
+  const VID_TYPES={mp4:['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1','video/mp4'],mov:['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1','video/mp4'],webm:['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']};
+  const vidMime=f=>window.MediaRecorder?VID_TYPES[f].find(t=>{try{return MediaRecorder.isTypeSupported(t)}catch(e){return false}}):null;
+  const vidFmt=h('select',{class:'sel','aria-label':'Video format'},[['mp4','MP4 (phones, Windows, social media)'],['mov','MOV (Mac / iPhone, QuickTime)'],['webm','WebM (web)']].map(([v,t])=>h('option',{value:v,text:t})));
+  const vidLoops=h('select',{class:'sel','aria-label':'How many times the loop repeats'},[[1,'Loop once'],[3,'Repeat 3×'],[5,'Repeat 5×'],[10,'Repeat 10×']].map(([v,t])=>h('option',{value:v,selected:v===3,text:t})));
+  const vidMsg=h('small',{class:'dim'});let vidBusy=false;
+  async function makeVideo(mime,loops,onProg){
+    const N=A.N,sc=Math.max(1,Math.floor(720/N)),W=N*sc,c=mk(W,W),x=c.getContext('2d');x.imageSmoothingEnabled=false;
+    const sm=mk(N,N),sx=sm.getContext('2d'),im=sx.createImageData(N,N);
+    const draw=i=>{animCompose(A,i,im.data);sx.putImageData(im,0,0);x.fillStyle='#ffffff';x.fillRect(0,0,W,W);x.drawImage(sm,0,0,W,W)};
+    draw(0);const st=c.captureStream(0),tr=st.getVideoTracks()[0];
+    const rec=new MediaRecorder(st,{mimeType:mime,videoBitsPerSecond:5e6}),chunks=[];rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+    const stopped=new Promise(r=>rec.onstop=r);rec.start();
+    const total=A.len*loops,ms=1000/A.fps,t0=performance.now();
+    for(let k=0;k<total;k++){draw(k%A.len);if(tr.requestFrame)tr.requestFrame();onProg(k/total);const due=t0+(k+1)*ms;await sleep(Math.max(0,due-performance.now()))}
+    rec.stop();await stopped;tr.stop();return new Blob(chunks,{type:mime.split(';')[0]})}
+  const dlVid=async e=>{if(vidBusy)return;if(playing)stop();const f=vidFmt.value,mime=vidMime(f);
+    if(!mime){await dlg.alert(f==='webm'?'This browser cannot record videos. Try Chrome, Edge or Safari.':'This browser cannot make MP4/MOV videos (Firefox only makes WebM). Pick WebM, or open the site in Chrome, Edge or Safari.',{icon:'warn',title:'Video'});return}
+    const btn=e.currentTarget,loops=+vidLoops.value;vidBusy=true;btn.disabled=true;
+    try{const v=await makeVideo(mime,loops,p=>{vidMsg.textContent=`Recording… ${Math.round(p*100)}% (keep this window open)`});
+      const name='my-animation.'+f,blob=f==='mov'?new Blob([v],{type:'video/quicktime'}):v;
+      exportFile(name,blob);vidMsg.textContent=`Done! ${name} · ${(blob.size/1024).toFixed(0)} KB · ${(A.len*loops/A.fps).toFixed(1)} seconds`;sfx('save')}
+    catch(err){vidMsg.textContent='The video could not be made: '+(err&&err.message||err)}finally{vidBusy=false;btn.disabled=false}};
   const clr=async()=>{if(await dlg.confirm('Clear everything (all frames, glitter and stamps)?',{icon:'warn',ok:'Clear all',cancel:'Keep'})){pushU();A.frames=[new Array(A.N*A.N).fill(null)];A.cur=0;A.glit.clear();A.stamps=[];drawAll()}};
   const doUndo=()=>{if(!undo.length)return;redo.push(snapState());loadState(undo.pop())},doRedo=()=>{if(!redo.length)return;undo.push(snapState());loadState(redo.pop())};
   const kd=e=>{if(!host.isConnected){document.removeEventListener('keydown',kd);return}if(!win.el.classList.contains('active'))return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?doRedo():doUndo()}};document.addEventListener('keydown',kd);
@@ -2450,6 +2473,7 @@ function animator(win,host){
       h('label',{class:'col'},h('b',{text:'Canvas size'}),sizeDoc),onion,
       h('div',{class:'row'},h('button',{class:'btn sm',onclick:doUndo},'↶ Undo'),h('button',{class:'btn sm',onclick:doRedo},'↷ Redo'),h('button',{class:'btn sm',onclick:clr},'Clear all')),
       h('div',{class:'row'},h('button',{class:'btn',onclick:saveGif},'💾 Save GIF to My Artwork'),h('button',{class:'btn',onclick:dlGif},'⬇ Download GIF')),
+      h('div',{class:'col anvid'},h('b',{text:'🎬 Video'}),vidFmt,h('div',{class:'row'},vidLoops,h('button',{class:'btn',onclick:dlVid},'⬇ Download video')),vidMsg),
       h('small',{class:'dim',text:'Draw one frame and let the glitter, stamps and background move by themselves, or add more frames for frame-by-frame animation.'}))),
     h('div',{class:'col'},h('b',{text:'Frames'}),strip)));
   drawAll();host._stop=()=>{stop();document.removeEventListener('keydown',kd)};
@@ -2461,6 +2485,7 @@ addCSS(`
 .anview{background:repeating-conic-gradient(#e6e9f0 0 25%,#fff 0 50%) 0 0/16px 16px;border:2px inset var(--line);line-height:0}
 .ancv{width:384px;height:384px;max-width:calc(100vw - 60px);max-height:calc(100vw - 60px);image-rendering:pixelated;cursor:crosshair;touch-action:none}
 .anside{display:flex;flex-direction:column;gap:10px;min-width:220px;flex:1;max-width:320px}
+.anvid{border-top:1px dashed var(--line);padding-top:8px}.anvid .sel{max-width:100%}
 .anstrip{display:flex;gap:6px;overflow-x:auto;padding:4px;background:var(--panel);border:1px solid var(--line);align-items:flex-start}
 .anfr{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px;border:2px solid transparent;background:repeating-conic-gradient(#e6e9f0 0 25%,#fff 0 50%) 0 0/8px 8px;cursor:pointer}.anfr.on{border-color:#ff4fa8}
 .anth{width:56px;height:56px;image-rendering:pixelated;display:block}

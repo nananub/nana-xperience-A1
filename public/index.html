@@ -750,6 +750,7 @@ function sysItems(){return [
   {id:'typing',name:'Typing Tutor',icon:'typing',tip:'Practise your typing speed',open:()=>WM.open('typing')},
   {id:'forum',name:'XP Boards',icon:'forum',tip:'A public forum for everyone on XPerience Online',open:()=>WM.open('forum')},
   {id:'system',name:'System',icon:'system',tip:'About this computer and the person who made it',open:()=>WM.open('system')},
+  {id:'bugs',name:'Report a Bug',icon:'bug',tip:'Found something broken? Tell the creator (screenshots welcome)',open:()=>WM.open('bugs')},
   {id:'bin',name:'Recycle Bin',icon:binFull()?'recyclefull':'recycle',tip:'Deleted files wait here',open:()=>WM.open('docs',{cwd:'bin'})}];}
 function deskItems(){const sys=sysItems();const fsn=fsKids('desktop').map(n=>({id:'fs:'+n.id,name:n.name,icon:fsIcon(n),node:n,open:()=>openNode(n)}));return [...sys,...fsn]}
 let selIcon=new Set();
@@ -757,7 +758,7 @@ function renderIcons(){
   if(!S)return;const box=$('#icons'),desk=$('#desk');box.innerHTML='';
   const items=deskItems(),rows=Math.max(1,Math.floor((desk.clientHeight-8)/CH));let seq=0;
   if(S.icons&&!S.sysCorner){delete S.icons.system;S.sysCorner=1}
-  const defPos=it=>it.id==='bin'?{x:Math.max(4,desk.clientWidth-CW-6),y:Math.max(4,desk.clientHeight-CH-4)}:it.id==='system'?{x:Math.max(4,desk.clientWidth-CW-6),y:6}:(p=>({x:6+Math.floor(p/rows)*CW,y:6+(p%rows)*CH}))(seq++);
+  const defPos=it=>it.id==='bin'?{x:Math.max(4,desk.clientWidth-CW-6),y:Math.max(4,desk.clientHeight-CH-4)}:it.id==='bugs'?{x:Math.max(4,desk.clientWidth-2*CW-6),y:Math.max(4,desk.clientHeight-CH-4)}:it.id==='system'?{x:Math.max(4,desk.clientWidth-CW-6),y:6}:(p=>({x:6+Math.floor(p/rows)*CW,y:6+(p%rows)*CH}))(seq++);
   const order=S.arrange==='auto'?[...items].sort((a,b)=>(a.node?1:0)-(b.node?1:0)||a.name.localeCompare(b.name)):items;
   order.forEach(it=>{
     const dp=defPos(it);const pos=(S.arrange==='auto'?dp:S.icons[it.id])||dp;
@@ -790,7 +791,7 @@ function renderIcons(){
   });
 }
 function arrangeBy(kind){
-  const desk=$('#desk'),rows=Math.max(1,Math.floor((desk.clientHeight-8)/CH));let items=deskItems().filter(i=>i.id!=='bin'&&i.id!=='system');
+  const desk=$('#desk'),rows=Math.max(1,Math.floor((desk.clientHeight-8)/CH));let items=deskItems().filter(i=>i.id!=='bin'&&i.id!=='system'&&i.id!=='bugs');
   if(kind==='name')items.sort((a,b)=>a.name.localeCompare(b.name));
   if(kind==='type')items.sort((a,b)=>(a.node?(a.node.type||'z'):'a').localeCompare(b.node?(b.node.type||'z'):'a')||a.name.localeCompare(b.name));
   S.icons={};items.forEach((it,i)=>{S.icons[it.id]={x:6+Math.floor(i/rows)*CW,y:6+(i%rows)*CH}});S.arrange='free';saveS();renderIcons();
@@ -896,6 +897,7 @@ function renderStart(){
         it2('space','My Space',()=>WM.open('space')),it2('timer','Timer',()=>WM.open('timer')),
         h('div',{class:'sm-sep'}),
         it2('system','System (About)',()=>WM.open('system')),
+        it2('bug','Report a Bug',()=>WM.open('bugs')),
         it2('settings','Settings',()=>WM.open('settings')),
         it2('run','Run…',runDialog))),
     h('div',{class:'sf'},
@@ -2633,7 +2635,7 @@ addCSS(`
 .gb{padding:10px;display:flex;flex-direction:column;gap:8px;overflow:auto;height:100%;background:linear-gradient(var(--soft),var(--face))}.gbe{background:var(--panel);color:var(--panel-ink);border:1px solid var(--line);padding:6px 8px;border-radius:4px}.gbe small{opacity:.6;display:block}
 `);
 APPS.messenger={title:'Chatzee.exe',icon:'messenger',w:320,h:540,minW:260,minH:320,single:true,key:()=>'x',render(win,p){
-  const M=S.msn;let tab='list';
+  const M=S.msn;let tab=p.tab||'list';
   win.tip('Contacts are fictional AI characters who live on this computer. The Online tab is different: there you chat with real people on XPerience Online.');
   let stopOnl=null;
   const tb=h('div',{class:'tabs'}),pane=h('div',{style:'flex:1;min-height:0;display:flex;flex-direction:column'});
@@ -4494,54 +4496,83 @@ system:`<rect x="3" y="4" width="26" height="18" rx="2.5" fill="url(#gS)" ${O}/>
 
 /* ============ System (About this project) ============ */
 /* ✏️ EDIT ME: put your own information here. Anything in [square brackets] is a placeholder. */
+/* ✏️ The project's information (System window). Edit the text here any time. */
 const ABOUT={
   project:'XPerience.exe',
   tagline:'Your little corner of the internet.',
   version:'Version 1.0 · 2026',
-  creator:'[Your name]',
-  role:'[Your role, e.g. student, designer and developer]',
-  school:'[School / course / class name]',
-  contact:'[Your email, website or social link]',
-  bio:'[Write a few sentences about yourself: who you are, what you like, why you made this.]',
+  link:'https://nana-xperience.onrender.com',
+  creator:'Nananub',
+  avatar:11, // the duck
+  role:'RMIT Digital Media student · 21 y/o · emo-enthusiast',
+  school:'RMIT University · Digital Media',
+  email:'nananguyen1765@gmail.com',
+  instagram:'na.lthea_',
+  bio:'Gemini / ENTP. I love ducks, watermelons and playing games, and I’m an emo-enthusiast.',
+  thanks:'Thank you so much for visiting! XPerience.exe is my assignment for the Digital Media course at RMIT University. It is still a work in progress, so if something breaks, looks strange, or you have an idea that would make this little computer feel even more like home, please tell me through Report a Bug. I will keep fixing and improving it. Thanks for spending some of your time here 🦆',
   about:[
-    '[What is XPerience.exe? Describe the project in your own words.]',
-    '[Why did you make it? What feeling or memory did you want to bring back?]',
-    '[Anything you want visitors to try first?]'
+    'XPerience.exe is an interactive nostalgic digital environment inspired by lost media, Y2K aesthetics, retro operating systems and early internet culture. It recreates the experience of using an old personal computer through nostalgic games, music players, creative tools and forgotten digital experiences.',
+    'The project aims to provide a comforting escape for people experiencing stress, emotional exhaustion or disconnection from modern digital life. By encouraging creativity, exploration and personal expression, XPerience.exe allows users to reconnect with childhood memories, rediscover the joy of simple digital interactions and experience the comfort of nostalgia.'
   ],
   tech:[
-    'Front end: HTML, CSS and JavaScript, all in one file (index.html).',
-    'Back end: a small Node.js server (server.js) that keeps the AI key secret.',
-    'AI: free models through OpenRouter power the Chatzee friends and Ask-O-Tron 2000.',
-    'Storage: everything you make stays in your own browser (localStorage and IndexedDB).'
+    ['Front end','HTML, CSS and JavaScript in a single file (index.html): the desktop, windows, 18 arcade games, Pixel Studio, Media Player and every other app. No frameworks.'],
+    ['Back end','A small Node.js server (server.js) with no extra packages. It serves the website and keeps every secret key on the server, never in the browser.'],
+    ['AI characters','The Chatzee friends and Ask-O-Tron 2000 are powered by free AI models through OpenRouter. If one model is busy, the server automatically tries another; if none answer, the characters fall back to built-in replies.'],
+    ['Online database','XPerience Online (accounts, private chats, the XP Boards forum and bug reports) runs on Convex, a real-time database, so new messages appear instantly. Passwords are hashed and never stored as plain text.'],
+    ['Hosting','The website runs on Render and updates automatically whenever new code is pushed to GitHub.'],
+    ['Your own things','Drawings, notes, diary pages, music, recordings and game scores are saved only in your own browser (localStorage and IndexedDB).']
   ],
-  credits:['[Add credits here: teachers, friends who tested it, fonts, sounds, inspiration…]']
+  credits:[
+    ['Lecturer','Tom Nguyen'],
+    ['Testers & best friends','Toto and Ryu, for testing the website, finding bugs and cheering me on'],
+    ['Build buddy','Big thanks to Claude for helping me fix and build this website'],
+    ['Made by','Nananub, with lots of love and too many late nights']
+  ]
 };
-const isPh=s=>/^\[.*\]$/.test(String(s).trim());
-APPS.system={title:'System',icon:'system',w:620,h:560,minW:320,minH:360,single:true,key:()=>'x',render(win,p){
+APPS.system={title:'System',icon:'system',w:640,h:580,minW:320,minH:360,single:true,key:()=>'x',render(win,p){
   let tab=p.tab||'welcome';
-  const ph=(t,tag='span')=>h(tag,{class:isPh(t)?'ph':'',text:t});
   const tabs=[['welcome','Welcome'],['about','About the project'],['creator','Creator'],['credits','Credits']];
   const tb=h('div',{class:'tabs'}),pane=h('div',{class:'syspane'});
-  const go=t=>{tab=t;tb.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));pane.replaceChildren(...({welcome,about,creator,credits})[t]())};
+  const go=t=>{tab=t;tb.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));pane.replaceChildren(...({welcome,about,creator,credits})[t]());pane.scrollTop=0};
   tabs.forEach(([k,t])=>tb.append(h('button',{class:'tabbtn'+(k===tab?' on':''),'data-t':k,onclick:()=>go(k)},t)));
   const app=(id,ic,name,sub)=>h('button',{class:'sysapp',onclick:()=>WM.open(id)},icn(ic,28),h('div',null,h('b',{text:name}),h('small',{text:sub})));
+  const ext=(href,text)=>h('a',{href,target:'_blank',rel:'noopener',text});
   function welcome(){return[
     h('div',{class:'syshero'},h('div',{html:LOGO(72)}),h('div',null,h('h2',{text:ABOUT.project}),h('div',{class:'tag',text:ABOUT.tagline}),h('small',{text:ABOUT.version}))),
-    h('p',null,`Hi ${S.name}! This is a pretend computer from the early 2000s. It is waiting for you to explore it.`),
+    h('p',null,`Hi ${S.name}! This is a pretend computer from the early 2000s, waiting for you to explore it.`),
+    h('b',{text:'How it works'}),
     h('ul',{class:'syslist'},
-      h('li',{text:'Double-click a desktop icon (or use the Start button) to open an app.'}),
-      h('li',{text:'Drag windows by their title bar. The buttons in the corner minimize, maximize and close them.'}),
-      h('li',{text:'Everything you draw, write, record or save stays on this device, in your own browser.'}),
-      h('li',{text:'The friends in Chatzee and the Ask-O-Tron robot are AI characters, not real people.'})),
+      h('li',{text:'Double-click a desktop icon (or use the Start button) to open an app. Drag windows by their title bar; the corner buttons minimize, maximize and close them.'}),
+      h('li',{text:'Everything you draw, write, record or save on this computer stays in your own browser.'}),
+      h('li',{text:'The "Old friends" in Chatzee and the Ask-O-Tron robot are AI characters, not real people.'})),
+    h('div',{class:'sysonline'},h('b',{text:'🌐 XPerience Online: meet real people'}),
+      h('ul',{class:'syslist'},
+        h('li',null,'Make a free account in ',h('b',{text:'Chatzee → 🌐 Online'}),', find friends by their username and chat with them privately.'),
+        h('li',null,'Post and reply on ',h('b',{text:'XP Boards'}),', the public forum: General chat, Music, Art & pixels, Games, and Help.'),
+        h('li',{text:'Be kind, and never share personal details like your address, school or phone number. Block and Report are always there if you need them.'})),
+      h('div',{class:'row'},h('button',{class:'btn',onclick:()=>WM.open('messenger',{tab:'online'})},'💬 Chat online'),h('button',{class:'btn',onclick:()=>WM.open('forum')},'🗂 Open XP Boards'))),
+    h('p',null,'🐞 Found something broken? Open ',h('a',{href:'#',onclick:e=>{e.preventDefault();WM.open('bugs')},text:'Report a Bug'}),' (next to the Recycle Bin) and tell the creator, with a screenshot if you like.'),
     h('b',{text:'Things to try'}),
-    h('div',{class:'sysapps'},app('arcade','arcade','Mini Arcade',GAMES.length+' little games'),app('studio','studio','Pixel Studio','Draw and animate GIFs'),app('media','media','Media Player','Music and !play links'),app('messenger','messenger','Chatzee','Chat with old friends'),app('typing','typing','Typing Tutor','How fast can you type?'),app('forum','forum','XP Boards','Talk with real people'),app('space','space','My Space','Diary, planner, notes')),
+    h('div',{class:'sysapps'},app('arcade','arcade','Mini Arcade',GAMES.length+' little games'),app('studio','studio','Pixel Studio','Draw, animate, export GIF & video'),app('media','media','Media Player','Music and !play links'),app('messenger','messenger','Chatzee','AI friends + real people'),app('forum','forum','XP Boards','The public forum'),app('typing','typing','Typing Tutor','How fast can you type?'),app('space','space','My Space','Diary, planner, notes'),app('capsule','capsule','Time Capsule','A photo of your computer')),
     h('label',{class:'row',style:'margin-top:10px'},h('input',{type:'checkbox',checked:S.autoOpen!==false,onchange:e=>{S.autoOpen=e.target.checked;saveS()}}),'Open these welcome windows every time I log in')]}
-  function about(){return[h('h3',{text:'About the project'}),...ABOUT.about.map(t=>ph(t,'p')),h('h3',{text:'How it is built'}),h('ul',{class:'syslist'},ABOUT.tech.map(t=>h('li',null,ph(t))))]}
-  function creator(){return[h('div',{class:'syshero'},avImg(0,'avf sysav'),h('div',null,h('h2',null,ph(ABOUT.creator)),h('div',{class:'tag'},ph(ABOUT.role)))),
-    h('table',{class:'systab'},[['School / course',ABOUT.school],['Contact',ABOUT.contact]].map(([k,v])=>h('tr',null,h('th',{text:k}),h('td',null,ph(v))))),h('h3',{text:'About me'}),ph(ABOUT.bio,'p')]}
-  function credits(){return[h('h3',{text:'Credits'}),h('ul',{class:'syslist'},ABOUT.credits.map(t=>h('li',null,ph(t)))),h('p',{class:'dim',text:'Every song, game, picture and character on this computer is original, made for XPerience.exe.'})]}
+  function about(){return[h('h3',{text:'About the project'}),...ABOUT.about.map(t=>h('p',{text:t})),
+    h('h3',{text:'How it is built'}),h('div',{class:'systech'},ABOUT.tech.map(([k,v])=>h('div',null,h('b',{text:k}),h('span',{text:v})))),
+    ABOUT.link?h('p',{class:'dim'},'Live at ',ext(ABOUT.link,ABOUT.link.replace(/^https?:\/\//,''))):null]}
+  function creator(){return[h('div',{class:'syshero'},avImg(ABOUT.avatar,'avf sysav'),h('div',null,h('h2',{text:ABOUT.creator}),h('div',{class:'tag',text:ABOUT.role}))),
+    h('table',{class:'systab'},
+      h('tr',null,h('th',{text:'Studying'}),h('td',{text:ABOUT.school})),
+      h('tr',null,h('th',{text:'Email'}),h('td',null,ext('mailto:'+ABOUT.email,ABOUT.email))),
+      h('tr',null,h('th',{text:'Instagram'}),h('td',null,ext('https://instagram.com/'+ABOUT.instagram,'@'+ABOUT.instagram))),
+      h('tr',null,h('th',{text:'Online'}),h('td',null,'nananub on ',h('a',{href:'#',onclick:e=>{e.preventDefault();WM.open('messenger',{tab:'online'})},text:'XPerience Online'})))),
+    h('h3',{text:'About me'}),h('p',{text:ABOUT.bio}),
+    h('div',{class:'systhanks'},h('b',{text:'A little thank-you 💌'}),h('p',{text:ABOUT.thanks}))]}
+  function credits(){return[h('h3',{text:'Credits'}),h('div',{class:'systech'},ABOUT.credits.map(([k,v])=>h('div',null,h('b',{text:k}),h('span',{text:v})))),
+    h('p',{class:'dim',text:'Every song, game, picture and character on this computer is original, made for XPerience.exe. Thank you for playing! 🦆'})]}
   win.body.append(h('div',{class:'sys'},tb,pane,h('div',{class:'sysfoot'},h('button',{class:'btn',onclick:()=>win.close()},'OK'))));win.body.style.padding='0';go(tab);
 }};
+addCSS(`.sysonline{background:#eaf3ff;border:1px solid #9cc2f0;border-radius:6px;padding:8px 10px;margin:8px 0}.sysonline .syslist{margin:4px 0 8px}
+.systech{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}.systech>div{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:6px 8px;background:#f6f9fd;border:1px solid #dde6f2;border-radius:4px}.systech b{color:#1f66d8}
+.small .systech>div{grid-template-columns:1fr}.systhanks{background:#fff6fb;border:1px dashed #ff9ad3;border-radius:6px;padding:8px 12px;margin-top:10px}.systhanks p{margin:4px 0 0}`);
 
 /* ============ Typing Tutor ============ */
 const TY_EASY='the and you can play sun cat dog run blue green happy home fish tree jump light star time day book cake moon game song rain snow bird road map cup pen hat bag red pink sky cloud kind nice warm cold fast slow big small open door shop walk talk smile friend music dance draw paint leaf seed hill lake boat sand shell wave milk tea toast apple pear lime plum jam bed lamp desk chair word type key note page file save disk mouse click screen'.split(' ');
@@ -4679,8 +4710,12 @@ function onlGate(host,onReady,win,{why='to use XPerience Online'}={}){
 function onlWatch(){
   if(ONL.watch){ONL.watch();ONL.watch=null}if(!onlTok())return;
   let first=true;
-  ONL.watch=onlSub('dm:myConvos',{token:onlTok()},list=>{if(!Array.isArray(list))return;const init=first;first=false;
-    list.forEach(c=>{const k=c.id;if(!init&&c.unread&&ONL.seen[k]!==c.lastAt){const open=[...WM.wins.values()].some(w=>w.key==='dm:'+c.other.id&&!w.min);if(!open)notify(`${c.other.name}: ${c.lastText}`,{title:'New message (XPerience Online)',icon:'messenger',onclick:()=>WM.open('dm',{id:c.other.id,name:c.other.name})})}ONL.seen[k]=c.lastAt})})}
+  let firstBug=true,lastBugs=0;
+  const stopBugs=onlSub('bugs:newCount',{token:onlTok()},(n,e)=>{if(e||typeof n!=='number')return;const init=firstBug;firstBug=false;
+    if(!init&&n>lastBugs)notify(n===1?'Someone sent a new bug report.':`You have ${n} new bug reports.`,{title:'Report a Bug (admin)',icon:'bug',onclick:()=>WM.open('bugs',{tab:'inbox'})});lastBugs=n});
+  const stopDm=onlSub('dm:myConvos',{token:onlTok()},list=>{if(!Array.isArray(list))return;const init=first;first=false;
+    list.forEach(c=>{const k=c.id;if(!init&&c.unread&&ONL.seen[k]!==c.lastAt){const open=[...WM.wins.values()].some(w=>w.key==='dm:'+c.other.id&&!w.min);if(!open)notify(`${c.other.name}: ${c.lastText}`,{title:'New message (XPerience Online)',icon:'messenger',onclick:()=>WM.open('dm',{id:c.other.id,name:c.other.name})})}ONL.seen[k]=c.lastAt})});
+  ONL.watch=()=>{stopDm();stopBugs()}}
 
 function onlProfile(userId){onlCall('query','users:profile',{userId}).then(u=>{if(!u){dlg.alert('This person is not on XPerience Online any more.',{icon:'info'});return}
   dlg.show({title:u.name,icon:'messenger',msg:`${u.bio||'(no bio yet)'}\n\nOn XPerience Online since ${fmtDate(u.createdAt)}.`,buttons:[{t:'Send a message',v:'m'},{t:'Close',v:null}]}).then(r=>{if(r==='m')WM.open('dm',{id:u.id,name:u.name})})}).catch(e=>dlg.alert(onlErr(e),{icon:'warn'}))}
@@ -4781,7 +4816,10 @@ APPS.forum={title:'XP Boards',icon:'forum',w:820,h:600,minW:340,minH:380,single:
         ...d.replies.map(r=>h('div',{class:'freply'},h('div',{class:'fauthor'},avImg(r.author.avatar),h('div',null,h('b',{text:r.author.name}),h('small',{text:onlAgo(r.createdAt)}))),h('div',{class:'fbody'},...emoNodes(r.body)),tools('reply',r.id,r.author,r.canDelete))),
         h('div',{class:'freplybox'},ta,msg,h('button',{class:'btn',onclick:send},'Post reply')));ta.value=draft},win)}
   function newPost(){const bs=h('select',{class:'sel','aria-label':'Board'},FBOARDS.slice(1).map(([k,t,ic])=>h('option',{value:k,selected:k===board,text:ic+' '+t}))),ti=h('input',{class:'inp',maxlength:120,placeholder:'Title','aria-label':'Title'}),bo=h('textarea',{class:'inp',rows:8,maxlength:3000,placeholder:'What do you want to say?','aria-label':'Post'}),msg=h('div',{class:'onlerr'});
-    const go=async e=>{e.currentTarget.disabled=true;try{const id=await onlCall('mutation','forum:createPost',{token:onlTok(),board:bs.value,title:ti.value,body:bo.value});sfx('save');board=bs.value;show({k:'post',id})}catch(err){msg.textContent=onlErr(err);e.currentTarget.disabled=false}};
+    const go=async e=>{const btn=e.currentTarget;msg.textContent='';
+      if(!ti.value.trim()){msg.textContent='Please give your post a title.';ti.focus();return}
+      if(!bo.value.trim()){msg.textContent='Please write something in your post first.';bo.focus();return}
+      btn.disabled=true;try{const id=await onlCall('mutation','forum:createPost',{token:onlTok(),board:bs.value,title:ti.value,body:bo.value});sfx('save');board=bs.value;show({k:'post',id})}catch(err){msg.textContent=onlErr(err);btn.disabled=false}};
     main.replaceChildren(h('div',{class:'fhead'},h('h2',{text:'✏ New post'})),h('div',{class:'col',style:'gap:8px;max-width:620px'},h('label',{class:'col'},'Board',bs),h('label',{class:'col'},'Title',ti),h('label',{class:'col'},'Message',bo),msg,
       h('small',{class:'dim',text:'🛡 Everyone can read this. Never post personal details like your address, school or phone number.'}),h('div',{class:'row'},h('button',{class:'btn',style:'font-weight:700',onclick:go},'Post it'),h('button',{class:'btn',onclick:()=>show({k:'list'})},'Cancel'))));setTimeout(()=>ti.focus(),30)}
   function reports(){main.replaceChildren(h('div',{class:'onlwait',text:'Loading reports…'}));
@@ -4793,6 +4831,120 @@ APPS.forum={title:'XP Boards',icon:'forum',w:820,h:600,minW:340,minH:380,single:
   drawAcct();show(p.post?{k:'post',id:p.post}:{k:'list'});
 }};
 Object.assign(IC,{forum:`<rect x="3" y="4" width="20" height="14" rx="2.5" fill="url(#gB)" ${O}/><path d="M8 18l-2 5 6-5" fill="url(#gB)" ${O}/><rect x="11" y="11" width="18" height="12" rx="2.5" fill="url(#gY)" ${O}/><path d="M24 23l3 5-7-5" fill="url(#gY)" ${O}/><path d="M7 9h12M7 13h8" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/><path d="M15 15.5h10M15 19h7" stroke="#7a5a00" stroke-width="1.5" stroke-linecap="round"/>`});
+
+/* ---- Report a Bug: anyone can send one (with screenshots); the admin (nananub) reads them ---- */
+Object.assign(IC,{bug:`<path d="M10 8.5l-3-3M22 8.5l3-3M7 15H3M29 15h-4M7 21l-4 2M25 21l4 2M8 26l-3 3M24 26l3 3" stroke="#1b2a4a" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="9.5" r="5" fill="#3a3f4a" ${O}/><circle cx="14" cy="8.6" r="1.1" fill="#fff"/><circle cx="18" cy="8.6" r="1.1" fill="#fff"/><ellipse cx="16" cy="19.5" rx="9.5" ry="10" fill="#ef4b34" ${O}/><path d="M16 9.8v19.6" stroke="#1b2a4a" stroke-width="1.5"/><circle cx="11.5" cy="16" r="2" fill="#2a1a1a"/><circle cx="20.5" cy="16" r="2" fill="#2a1a1a"/><circle cx="11" cy="23" r="1.7" fill="#2a1a1a"/><circle cx="21" cy="23" r="1.7" fill="#2a1a1a"/><path d="M10 13.5c1-1.6 2.4-2.4 4-2.6" stroke="#ffb3a6" stroke-width="1.3" fill="none" stroke-linecap="round"/>`});
+const BUG_MAX=3,BUG_BYTES=5*1024*1024;
+/* make big screenshots small enough (max 5 MB, max 2200 px) */
+async function bugShrink(file){
+  if(file.size<=BUG_BYTES&&file.size<=1.5*1024*1024)return file;
+  if(file.type==='image/gif'&&file.size<=BUG_BYTES)return file;
+  try{const bmp=await createImageBitmap(file);const k=Math.min(1,2200/Math.max(bmp.width,bmp.height));
+    const c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+    for(const q of [.9,.8,.65,.5]){const b=await new Promise(r=>c.toBlob(r,'image/jpeg',q));if(b&&b.size<=BUG_BYTES)return new File([b],(file.name||'screenshot').replace(/\.\w+$/,'')+'.jpg',{type:'image/jpeg'})}}catch(e){}
+  return file.size<=BUG_BYTES?file:null}
+APPS.bugs={title:'Report a Bug',icon:'bug',w:520,h:600,minW:320,minH:380,single:true,key:()=>'x',render(win,p){
+  win.tip('Bug reports go straight to the creator of XPerience.exe. You don\'t need an account, but signing in to XPerience Online lets them reply to you.');
+  let tab=p.tab||'report',me=null,stopMe=null,stopList=null;
+  const tb=h('div',{class:'tabs'}),pane=h('div',{class:'bugpane'});
+  const go=t=>{tab=t;if(stopList){stopList();stopList=null}drawTabs();(t==='inbox'&&me&&me.admin?inbox:report)()};
+  win.onParams=q=>{if(q.tab)go(q.tab)};
+  function drawTabs(){tb.replaceChildren(h('button',{class:'tabbtn'+(tab!=='inbox'?' on':''),onclick:()=>go('report')},'🐞 Report a bug'),me&&me.admin?h('button',{class:'tabbtn'+(tab==='inbox'?' on':''),onclick:()=>go('inbox')},'📥 Bug inbox (admin)'):'')}
+  win.body.append(h('div',{class:'bugwin'},tb,pane));win.body.style.padding='0';
+  if(onlTok())stopMe=onlSub('users:me',{token:onlTok()},(u,e)=>{if(e){if(tab==='inbox')go('report');return}const was=!!(me&&me.admin);me=u||null;if(tab==='inbox'){if(!(me&&me.admin))go('report');else if(!was)go('inbox');else drawTabs()}else{drawTabs();if(!sent)report()}},win);
+  let files=[],sent=false,draft={title:'',details:'',where:'',guest:S.name||''};
+
+  function report(){
+    sent=false;
+    const where=h('select',{class:'bugin','aria-label':'Which part of XPerience has the bug?',onchange:e=>draft.where=e.target.value},
+      h('option',{value:'',text:'Choose one…'}),...[...sysItems().filter(i=>i.id!=='bugs'&&i.id!=='bin').map(i=>i.name),'My Diary','Notepad','Calendar','Timer','Settings','Log-on / profiles','Start menu or taskbar','Somewhere else / not sure'].map(n=>h('option',{value:n,text:n,selected:draft.where===n})));
+    const title=h('input',{class:'bugin',maxlength:120,placeholder:'e.g. Flappy Duck freezes after 20 points',value:draft.title,oninput:e=>draft.title=e.target.value});
+    const details=h('textarea',{class:'bugin',rows:6,maxlength:3000,placeholder:'What did you do? What did you expect? What happened instead?\nThe more steps you write, the easier it is to fix.',value:draft.details,oninput:e=>draft.details=e.target.value});
+    const guest=h('input',{class:'bugin',maxlength:30,placeholder:'optional',value:draft.guest,oninput:e=>draft.guest=e.target.value});
+    const thumbs=h('div',{class:'bugthumbs'}),err=h('div',{class:'onlerr',role:'alert'});
+    const pick=h('input',{type:'file',accept:'image/*',multiple:true,style:'display:none',onchange:()=>{add(pick.files);pick.value=''}});
+    async function add(list){err.textContent='';
+      for(const f of [...list]){if(!/^image\//.test(f.type)){err.textContent='Only pictures can be attached (PNG, JPG, GIF or WebP).';continue}
+        if(files.length>=BUG_MAX){err.textContent=`You can attach up to ${BUG_MAX} pictures.`;break}
+        const small=await bugShrink(f);if(!small){err.textContent='That picture is too big (max 5 MB).';continue}
+        files.push({file:small,url:URL.createObjectURL(small)})}
+      drawThumbs()}
+    function drawThumbs(){thumbs.replaceChildren(...files.map((f,i)=>h('div',{class:'bugthumb'},h('img',{src:f.url,alt:'Screenshot '+(i+1)}),h('button',{class:'bugx',title:'Remove','aria-label':'Remove picture '+(i+1),onclick:()=>{URL.revokeObjectURL(f.url);files.splice(i,1);drawThumbs()}},'✕'))),
+      files.length<BUG_MAX?h('button',{class:'bugadd',onclick:()=>pick.click()},h('b',{text:'＋'}),h('small',{text:'Add a picture'})):'')}
+    const drop=h('div',{class:'bugdrop',ondragover:e=>{e.preventDefault();drop.classList.add('over')},ondragleave:()=>drop.classList.remove('over'),ondrop:e=>{e.preventDefault();drop.classList.remove('over');add(e.dataTransfer.files)}},
+      thumbs,h('small',{class:'dim',text:'Drag pictures here, click ＋, or paste a screenshot with Ctrl+V (Windows: Win+Shift+S to take one · Mac: Cmd+Shift+4). Up to 3 pictures, 5 MB each.'}),pick);
+    const btn=h('button',{class:'btn',style:'font-weight:700',onclick:send},'🐞 Send bug report');
+    async function send(){err.textContent='';
+      if(!draft.title.trim()){err.textContent='Please give the bug a short title.';title.focus();return}
+      if(!draft.details.trim()){err.textContent='Please describe what happened.';details.focus();return}
+      btn.disabled=true;const up=[];
+      try{
+        for(let i=0;i<files.length;i++){btn.textContent=`Uploading picture ${i+1} of ${files.length}…`;
+          const url=await onlCall('mutation','bugs:uploadUrl',{});
+          const r=await fetch(url,{method:'POST',headers:{'Content-Type':files[i].file.type},body:files[i].file});
+          if(!r.ok)throw new Error('upload');up.push((await r.json()).storageId)}
+        btn.textContent='Sending…';
+        await onlCall('mutation','bugs:submit',{token:onlTok()||undefined,guestName:draft.guest.trim()||undefined,title:draft.title,details:draft.details,where:draft.where||undefined,images:up,
+          device:`${(navigator.userAgent.match(/(Edg|OPR|Firefox|Chrome|Safari)\/[\d]+/)||['browser'])[0]} · ${innerWidth}×${innerHeight}${matchMedia('(pointer:coarse)').matches?' · touch':''}`});
+        files.forEach(f=>URL.revokeObjectURL(f.url));files=[];draft={title:'',details:'',where:'',guest:draft.guest};sent=true;sfx('chime');thanks()}
+      catch(e){if(up.length)onlCall('mutation','bugs:discard',{images:up}).catch(()=>{});
+        err.textContent=e&&e.message==='upload'?'A picture could not be uploaded. Check your connection and try again.':onlErr(e);sfx('error')}
+      finally{btn.disabled=false;if(!sent)btn.textContent='🐞 Send bug report'}}
+    const who=me?h('div',{class:'bugwho'},avImg(me.avatar),h('span',null,'Sending as ',h('b',{text:me.name}),' on XPerience Online')):
+      h('label',null,'Your name ',guest,h('small',{class:'dim',text:' Sign in to XPerience Online (Chatzee → 🌐 Online) if you\'d like a reply.'}));
+    pane.replaceChildren(h('div',{class:'bugform'},
+      h('div',{class:'bughead'},icn('bug',40),h('div',null,h('b',{text:'Found a bug? Tell Nananub!'}),h('small',{text:'Something broken, weird or confusing? Your report goes straight to the creator. Screenshots help a lot. Thank you for helping make XPerience better 🦆'}))),
+      who,h('label',null,'Where is the bug?',where),h('label',null,'Short title',title),h('label',null,'What happened?',details),
+      h('div',null,h('div',{class:'buglbl',text:'Screenshots (optional)'}),drop),err,h('div',{class:'row',style:'justify-content:flex-end'},btn)));
+    drawThumbs();
+    pane.onpaste=e=>{const im=[...(e.clipboardData||{}).items||[]].filter(i=>i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean);if(im.length){e.preventDefault();add(im)}};
+  }
+  function thanks(){pane.replaceChildren(h('div',{class:'bugdone'},icn('bug',56),h('h2',{text:'Thank you! 💌'}),h('p',{text:'Your bug report was sent to Nananub. They will take a look and try to fix it as soon as they can.'}),
+    h('div',{class:'row',style:'justify-content:center'},h('button',{class:'btn',onclick:report},'Report another bug'),h('button',{class:'btn',onclick:()=>win.close()},'Close'))))}
+
+  function inbox(){
+    let filter='open',rows=null,err='';
+    const body=h('div',{class:'buglist'});
+    const bar=h('div',{class:'row bugbar'});
+    const draw=()=>{
+      bar.replaceChildren(...[['open','Open'],['new','New'],['fixed','Fixed'],['all','All']].map(([k,t])=>h('button',{class:'btn sm'+(filter===k?' on':''),onclick:()=>{filter=k;draw()}},t+(rows?` (${rows.filter(b=>k==='all'||(k==='open'?b.status!=='fixed':b.status===k)).length})`:''))));
+      if(err){body.replaceChildren(h('div',{class:'onlwait',text:'⚠ '+err}));return}
+      if(!rows){body.replaceChildren(h('div',{class:'onlwait',text:'Loading bug reports…'}));return}
+      const list=rows.filter(b=>filter==='all'||(filter==='open'?b.status!=='fixed':b.status===filter));
+      if(!list.length){body.replaceChildren(h('div',{class:'onlwait',text:filter==='open'?'No open bugs. Everything is working! 🎉':'Nothing here.'}));return}
+      body.replaceChildren(...list.map(b=>{
+        const set=st=>onlCall('mutation','bugs:setStatus',{token:onlTok(),id:b.id,status:st}).catch(e=>dlg.alert(onlErr(e),{icon:'warn'}));
+        return h('div',{class:'bugcard '+b.status},
+          h('div',{class:'bugtop'},h('span',{class:'bugst '+b.status,text:b.status==='new'?'NEW':b.status==='seen'?'Seen':'Fixed ✓'}),h('b',{text:b.title})),
+          h('div',{class:'dim bugmeta',text:`${b.byName}${b.signedIn?' (online account)':' (guest)'} · ${b.where||'not sure where'} · ${onlAgo(b.createdAt)}`}),
+          h('div',{class:'bugtext',text:b.details}),
+          b.images.length?h('div',{class:'bugimgs'},b.images.map((u,i)=>h('a',{href:u,target:'_blank',rel:'noopener',title:'Open full size'},h('img',{src:u,alt:'Screenshot '+(i+1),loading:'lazy'})))):'',
+          b.device?h('div',{class:'dim bugmeta',text:'💻 '+b.device}):'',
+          h('div',{class:'row'},
+            b.status==='new'?h('button',{class:'btn sm',onclick:()=>set('seen')},'👀 Mark seen'):'',
+            b.status!=='fixed'?h('button',{class:'btn sm',onclick:()=>set('fixed')},'✅ Mark fixed'):h('button',{class:'btn sm',onclick:()=>set('seen')},'↩ Reopen'),
+            h('button',{class:'btn sm',onclick:async()=>{if(await dlg.confirm(`Delete the bug report "${b.title}" and its pictures? This cannot be undone.`,{title:'Delete report',icon:'warn',ok:'Delete',cancel:'Cancel'}))onlCall('mutation','bugs:remove',{token:onlTok(),id:b.id}).catch(e=>dlg.alert(onlErr(e),{icon:'warn'}))}},'🗑 Delete')))}))};
+    pane.replaceChildren(h('div',{class:'buginbox'},bar,body));draw();
+    stopList=onlSub('bugs:list',{token:onlTok()},(r,e)=>{if(e){err=onlErr(e);rows=null}else{err='';rows=r||[]}draw()},win)}
+  win.onClose(()=>{files.forEach(f=>URL.revokeObjectURL(f.url));if(stopList)stopList()});
+  drawTabs();if(tab==='inbox'&&!(me&&me.admin))pane.replaceChildren(h('div',{class:'onlwait',text:'Checking…'}));else report();
+  if(tab==='inbox'&&!onlTok())report();
+}};
+addCSS(`.bugwin{display:flex;flex-direction:column;height:100%}.bugpane{flex:1;min-height:0;overflow:auto;padding:12px}
+.bugform{display:flex;flex-direction:column;gap:9px}.bugform label{display:flex;flex-direction:column;gap:3px;font-weight:600}.bugform label small{font-weight:400}
+.bugin{font:inherit;padding:5px 7px;border:1px solid #7f9db9;border-radius:3px;background:#fff;color:#111;resize:vertical}.bugin:focus{outline:2px solid #3a7bd5;outline-offset:0}
+.bughead{display:flex;gap:10px;align-items:center;background:#fff4f2;border:1px solid #f3b8ad;border-radius:6px;padding:8px 10px}.bughead div{display:flex;flex-direction:column;gap:2px}
+.bugwho{display:flex;align-items:center;gap:8px}.bugwho img,.bugwho svg{width:28px;height:28px}
+.buglbl{font-weight:600;margin-bottom:3px}.bugdrop{border:2px dashed #9cb3d4;border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px;background:#f7faff}.bugdrop.over{background:#e3efff;border-color:#3a7bd5}
+.bugthumbs{display:flex;gap:8px;flex-wrap:wrap}.bugthumb{position:relative;width:96px;height:72px;border:1px solid #9cb3d4;border-radius:4px;overflow:hidden;background:#fff}.bugthumb img{width:100%;height:100%;object-fit:cover}
+.bugx{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:1px solid #fff;background:#d23;color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0}
+.bugadd{width:96px;height:72px;border:1px dashed #7f9db9;border-radius:4px;background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#1f66d8}.bugadd b{font-size:22px;line-height:1}
+.bugdone{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:30px 10px}
+.buginbox{display:flex;flex-direction:column;gap:8px}.bugbar{flex-wrap:wrap;gap:4px}.bugbar .btn.on{font-weight:700;outline:2px solid #3a7bd5}
+.buglist{display:flex;flex-direction:column;gap:8px}.bugcard{border:1px solid #c9d6e8;border-left:4px solid #ef4b34;border-radius:5px;padding:8px 10px;background:#fff;display:flex;flex-direction:column;gap:5px}
+.bugcard.seen{border-left-color:#f0a020}.bugcard.fixed{border-left-color:#2fa84f;opacity:.8}.bugtop{display:flex;gap:6px;align-items:center}
+.bugst{font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#ef4b34;color:#fff;white-space:nowrap}.bugst.seen{background:#f0a020}.bugst.fixed{background:#2fa84f}
+.bugmeta{font-size:11px}.bugtext{white-space:pre-wrap;overflow-wrap:anywhere}.bugimgs{display:flex;gap:6px;flex-wrap:wrap}.bugimgs img{width:120px;height:90px;object-fit:cover;border:1px solid #9cb3d4;border-radius:4px}`);
 addCSS(`
 .onl{display:flex;flex-direction:column;flex:1;min-height:0;overflow:auto}
 .onlgate{display:flex;flex-direction:column;gap:8px;padding:12px}.onlgate label{display:flex;flex-direction:column;gap:2px;font-size:12px}.onlhead{display:flex;gap:8px;align-items:center}.onlhead span{font-size:26px}.onlhead small{display:block;opacity:.75}

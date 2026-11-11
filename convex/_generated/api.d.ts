@@ -9,6 +9,7 @@
  */
 
 import type * as accounts from "../accounts.js";
+import type * as bugs from "../bugs.js";
 import type * as dm from "../dm.js";
 import type * as forum from "../forum.js";
 import type * as lib from "../lib.js";
@@ -22,6 +23,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
+  bugs: typeof bugs;
   dm: typeof dm;
   forum: typeof forum;
   lib: typeof lib;

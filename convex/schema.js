@@ -65,4 +65,17 @@ export default defineSchema({
     createdAt: v.number(),
     done: v.optional(v.boolean()),
   }).index("by_created", ["createdAt"]),
+
+  // bug reports sent through "Report a Bug" (guests can send them too)
+  bugs: defineTable({
+    byId: v.optional(v.id("users")),
+    byName: v.string(),
+    title: v.string(),
+    details: v.string(),
+    where: v.string(),             // which app the bug is in
+    images: v.array(v.id("_storage")),
+    device: v.string(),            // browser + screen size, to help reproduce it
+    status: v.string(),            // "new" | "seen" | "fixed"
+    createdAt: v.number(),
+  }).index("by_created", ["createdAt"]),
 });

@@ -602,7 +602,7 @@ function applyWallpaper(){
 const wallThumb=(w)=>{const d=h('div',{class:'wthumb'});d.style.backgroundImage=w.css();d.style.imageRendering=(w.id==='pixel'||w.id==='static')?'pixelated':'auto';return d};
 /* ============ dialogs, menus, export ============ */
 const dlg={
-  show({title='XPerience',icon='info',msg='',buttons=[{t:'OK',v:true}],input=null,list=null}){
+  show({title='XPerience',icon='info',msg='',buttons=[{t:'OK',v:true}],input=null,list=null,body=null,bind=null}){
     return new Promise(res=>{
       const m=h('div',{class:'modal'});const prev=document.activeElement;
       const done=v=>{m.remove();try{prev&&prev.focus&&prev.focus()}catch(e){}res(v)};
@@ -613,10 +613,10 @@ const dlg={
       const btns=h('div',{class:'dbtns'},buttons.map((b,i)=>h('button',{class:'btn',onclick:()=>done(input?(b.v===true?inp.value:(b.v===undefined?null:b.v)):b.v),autofocus:i===0&&!input&&!list},b.t)));
       const box=h('div',{class:'dlg',role:'dialog','aria-modal':'true','aria-label':title},
         h('div',{class:'tb'},h('span',{class:'ti',html:ICON(icon,16)}),h('span',{class:'tt',text:title}),h('button',{'aria-label':'Close',text:'×',onclick:()=>done(buttons.length>1?(input?null:false):true)})),
-        h('div',{class:'db'},icn(icon,36),h('div',{class:'dm',text:msg})),inp,listEl,btns);
+        h('div',{class:'db'},icn(icon,36),h('div',{class:'dm',text:msg})),inp,listEl,body,btns);if(bind)bind(done);
       m.append(box);m.addEventListener('keydown',e=>{if(e.key==='Escape'&&!input)done(buttons.length>1?false:true)});
       $('#modals').append(m);if(icon==='error')sfx('error');
-      (inp||btns.firstChild).focus();if(inp)inp.select();
+      if(!body)(inp||btns.firstChild).focus();if(inp)inp.select();
     });
   },
   alert:(msg,o={})=>dlg.show({msg,...o}),
@@ -748,7 +748,9 @@ function sysItems(){return [
   {id:'calc',name:'Calculator',icon:'calc',tip:'Add things up',open:()=>WM.open('calc')},
   {id:'capsule',name:'Time Capsule',icon:'capsule',tip:'Save a snapshot of your computer',open:()=>WM.open('capsule')},
   {id:'typing',name:'Typing Tutor',icon:'typing',tip:'Practise your typing speed',open:()=>WM.open('typing')},
+  {id:'forum',name:'XP Boards',icon:'forum',tip:'A public forum for everyone on XPerience Online',open:()=>WM.open('forum')},
   {id:'system',name:'System',icon:'system',tip:'About this computer and the person who made it',open:()=>WM.open('system')},
+  {id:'bugs',name:'Report a Bug',icon:'bug',tip:'Found something broken? Tell the creator (screenshots welcome)',open:()=>WM.open('bugs')},
   {id:'bin',name:'Recycle Bin',icon:binFull()?'recyclefull':'recycle',tip:'Deleted files wait here',open:()=>WM.open('docs',{cwd:'bin'})}];}
 function deskItems(){const sys=sysItems();const fsn=fsKids('desktop').map(n=>({id:'fs:'+n.id,name:n.name,icon:fsIcon(n),node:n,open:()=>openNode(n)}));return [...sys,...fsn]}
 let selIcon=new Set();
@@ -756,7 +758,7 @@ function renderIcons(){
   if(!S)return;const box=$('#icons'),desk=$('#desk');box.innerHTML='';
   const items=deskItems(),rows=Math.max(1,Math.floor((desk.clientHeight-8)/CH));let seq=0;
   if(S.icons&&!S.sysCorner){delete S.icons.system;S.sysCorner=1}
-  const defPos=it=>it.id==='bin'?{x:Math.max(4,desk.clientWidth-CW-6),y:Math.max(4,desk.clientHeight-CH-4)}:it.id==='system'?{x:Math.max(4,desk.clientWidth-CW-6),y:6}:(p=>({x:6+Math.floor(p/rows)*CW,y:6+(p%rows)*CH}))(seq++);
+  const defPos=it=>it.id==='bin'?{x:Math.max(4,desk.clientWidth-CW-6),y:Math.max(4,desk.clientHeight-CH-4)}:it.id==='bugs'?{x:Math.max(4,desk.clientWidth-2*CW-6),y:Math.max(4,desk.clientHeight-CH-4)}:it.id==='system'?{x:Math.max(4,desk.clientWidth-CW-6),y:6}:(p=>({x:6+Math.floor(p/rows)*CW,y:6+(p%rows)*CH}))(seq++);
   const order=S.arrange==='auto'?[...items].sort((a,b)=>(a.node?1:0)-(b.node?1:0)||a.name.localeCompare(b.name)):items;
   order.forEach(it=>{
     const dp=defPos(it);const pos=(S.arrange==='auto'?dp:S.icons[it.id])||dp;
@@ -789,7 +791,7 @@ function renderIcons(){
   });
 }
 function arrangeBy(kind){
-  const desk=$('#desk'),rows=Math.max(1,Math.floor((desk.clientHeight-8)/CH));let items=deskItems().filter(i=>i.id!=='bin'&&i.id!=='system');
+  const desk=$('#desk'),rows=Math.max(1,Math.floor((desk.clientHeight-8)/CH));let items=deskItems().filter(i=>i.id!=='bin'&&i.id!=='system'&&i.id!=='bugs');
   if(kind==='name')items.sort((a,b)=>a.name.localeCompare(b.name));
   if(kind==='type')items.sort((a,b)=>(a.node?(a.node.type||'z'):'a').localeCompare(b.node?(b.node.type||'z'):'a')||a.name.localeCompare(b.name));
   S.icons={};items.forEach((it,i)=>{S.icons[it.id]={x:6+Math.floor(i/rows)*CW,y:6+(i%rows)*CH}});S.arrange='free';saveS();renderIcons();
@@ -881,7 +883,8 @@ function renderStart(){
         it('diary','My Diary','Private thoughts, locked',()=>WM.open('diary')),
         it('assistant','Ask-O-Tron 2000','Facts up to 2014',()=>WM.open('assistant')),
         it('notepad','Notepad','Write a quick note',()=>WM.open('notepad',{parent:'notes'})),
-        it('typing','Typing Tutor','Practise typing speed',()=>WM.open('typing'))),
+        it('typing','Typing Tutor','Practise typing speed',()=>WM.open('typing')),
+        it('forum','XP Boards','Public forum with real people',()=>WM.open('forum'))),
       h('div',{class:'sc r'},
         it2('docs','My Documents',()=>WM.open('docs',{cwd:'docs'})),
         it2('image','My Pictures',()=>WM.open('docs',{cwd:'pictures'})),
@@ -894,6 +897,7 @@ function renderStart(){
         it2('space','My Space',()=>WM.open('space')),it2('timer','Timer',()=>WM.open('timer')),
         h('div',{class:'sm-sep'}),
         it2('system','System (About)',()=>WM.open('system')),
+        it2('bug','Report a Bug',()=>WM.open('bugs')),
         it2('settings','Settings',()=>WM.open('settings')),
         it2('run','Run…',runDialog))),
     h('div',{class:'sf'},
@@ -933,7 +937,7 @@ async function powerOff(restart){
   Scr.show('welcome');sfx('shutdown');await sleep(2300);S=null;UK='';
   if(restart)runBoot();else{$('#led').classList.remove('on');renderPower('off');Scr.show('power')}
 }
-function logoff(){sfx('logoff');closeCtx();Saver.stop();saveNow();stopTimers();WM.closeAll();S=null;UK='';showLogin()}
+function logoff(){sfx('logoff');closeCtx();if(ONL.watch){ONL.watch();ONL.watch=null}Saver.stop();saveNow();stopTimers();WM.closeAll();S=null;UK='';showLogin()}
 
 /* ============ screensaver ============ */
 const Saver={on:false,raf:0,kind:'',t0:0,lx:null,ly:null,
@@ -1096,6 +1100,7 @@ async function startDesktop(){
   syncSmall();applyTheme();applyCursor();applyWallpaper();applyDecor();renderStartBtn();renderTray();selIcon.clear();renderIcons();
   tickClock();clearInterval(clockT);clockT=setInterval(tickClock,10000);scheduleNotes();msnStart();remStart();lastAct=Date.now();sessStart=Date.now();
   setTimeout(()=>{if(S&&!$('#os').hidden&&!WM.wins.size)openWelcomeWindows()},350);
+  ONL.seen={};if(onlTok())setTimeout(()=>{if(S)onlWatch()},1500);
   setTimeout(()=>{
     if(!S)return;
     if(S.visits===1)notify('Double-click an icon to open it. Right-click the desktop for options. There is a readme.txt waiting on the desktop.',{title:'Welcome home',icon:'star'});
@@ -2630,11 +2635,13 @@ addCSS(`
 .gb{padding:10px;display:flex;flex-direction:column;gap:8px;overflow:auto;height:100%;background:linear-gradient(var(--soft),var(--face))}.gbe{background:var(--panel);color:var(--panel-ink);border:1px solid var(--line);padding:6px 8px;border-radius:4px}.gbe small{opacity:.6;display:block}
 `);
 APPS.messenger={title:'Chatzee.exe',icon:'messenger',w:320,h:540,minW:260,minH:320,single:true,key:()=>'x',render(win,p){
-  const M=S.msn;let tab='list';
-  win.tip('These are fictional characters who live on this computer. No real people can see your chats. Replies are written by AI, so they can be a little unpredictable.');
+  const M=S.msn;let tab=p.tab||'list';
+  win.tip('Contacts are fictional AI characters who live on this computer. The Online tab is different: there you chat with real people on XPerience Online.');
+  let stopOnl=null;
   const tb=h('div',{class:'tabs'}),pane=h('div',{style:'flex:1;min-height:0;display:flex;flex-direction:column'});
-  const go=t=>{tab=t;tb.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));pane.replaceChildren();t==='list'?list():guest()};
-  [['list','Contacts'],['guest','Guestbook']].forEach(([k,t])=>tb.append(h('button',{class:'tabbtn'+(k===tab?' on':''),'data-t':k,onclick:()=>go(k)},t)));
+  const go=t=>{tab=t;tb.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));pane.replaceChildren();if(stopOnl){stopOnl();stopOnl=null}t==='list'?list():t==='online'?chatzeeOnline(pane,{onClose:f=>{stopOnl=f;win.onClose(f)}}):guest()};
+  win.onParams=q=>{if(q.tab)go(q.tab)};
+  [['list','Old friends (AI)'],['online','🌐 Online'],['guest','Guestbook']].forEach(([k,t])=>tb.append(h('button',{class:'tabbtn'+(k===tab?' on':''),'data-t':k,onclick:()=>go(k)},t)));
   win.body.append(h('div',{class:'msn'},tb,pane));win.body.style.padding='0';
   function list(){
     const nick=h('input',{value:M.nick,maxlength:20,'aria-label':'Display name',onchange:e=>{M.nick=e.target.value.trim()||S.name;saveS()}}),pm=h('input',{value:M.msg,maxlength:60,'aria-label':'Personal message',placeholder:'Type a personal message',onchange:e=>{M.msg=e.target.value;saveS()}});
@@ -2649,7 +2656,7 @@ APPS.messenger={title:'Chatzee.exe',icon:'messenger',w:320,h:540,minW:260,minH:3
     const g=h('div',{class:'gb'}),nm=h('input',{class:'inp',value:S.name,maxlength:20,'aria-label':'Your name'}),tx=h('textarea',{class:'inp',maxlength:200,rows:3,placeholder:'Leave a note for whoever opens this computer next…','aria-label':'Message'}),lst=h('div',{style:'display:flex;flex-direction:column;gap:6px'});
     const draw=()=>{lst.innerHTML='';if(!S.guest.length)lst.append(h('div',{class:'emptymsg',text:'No entries yet. Be the first to sign.'}));S.guest.slice().reverse().forEach((e,i)=>lst.append(h('div',{class:'gbe'},h('b',{text:e.name}),h('small',{text:fmtDate(e.ts)+' '+fmtTime(e.ts)}),h('div',{},...emoNodes(e.text)),h('button',{class:'btn sm',onclick:async()=>{if(await dlg.confirm('Remove this entry?',{icon:'warn',ok:'Remove',cancel:'Keep'})){S.guest.splice(S.guest.length-1-i,1);saveS();draw()}}},'Remove'))))};
     g.append(h('div',{class:'dim',text:'A guestbook saved on this computer only. Nobody else will see it.'}),nm,tx,h('button',{class:'btn',onclick:()=>{const t=tx.value.trim();if(!t)return;S.guest.push({name:nm.value.trim()||S.name,text:t,ts:Date.now()});if(S.guest.length>100)S.guest.shift();saveS();tx.value='';sfx('save');draw()}},'Sign guestbook'),lst);pane.append(g);draw()}
-  go('list');
+  go(p.tab||'list');
 }};
 APPS.chat={title:'Conversation',icon:'messenger',w:420,h:460,minW:300,minH:300,key:p=>'chat:'+p.id,render(win,p){
   const b=BOTS.find(x=>x.id===p.id);if(!b){win.body.append(h('div',{style:'padding:16px',text:'That contact is gone.'}));return}
@@ -3203,11 +3210,16 @@ APPS.assistant={title:'Ask-O-Tron 2000',icon:'assistant',w:460,h:560,minW:300,mi
   const log=h('div',{class:'log',role:'log','aria-live':'polite'}),inp=h('input',{'aria-label':'Ask a question',placeholder:'Ask me something…',maxlength:120,autocomplete:'off'});
   const draw=()=>{log.innerHTML='';H.slice(-40).forEach(m=>log.append(msgEl(m)));log.scrollTop=log.scrollHeight};
   const msgEl=m=>h('div',{class:'m '+(m.f==='me'?'me':'bt')},m.t,m.link?h('button',{onclick:()=>WM.open('ie',{url:m.link.url})},m.link.label):null);
+  const modeEl=h('span',{text:'CHECKING CONNECTION…'}),stEl=h('div',{class:'st'},h('b',{text:'ASK-O-TRON 2000'}),h('br'),'MEMORY BANKS: ANCIENT HISTORY — DEC 2014',h('br'),modeEl);
+  const setMode=on=>{modeEl.textContent=on?'ONLINE · AI BRAIN CONNECTED':'OFFLINE · BUILT-IN ANSWERS ONLY'};serverAI().then(st=>setMode(!!(st&&st.ai)));
   const OKS=['Affirmative. ','Processing complete. ','Query accepted. ','Accessing memory banks… ','Bleep. ','Fine. '],END=['',''," Anything else, or shall I return to staring at the wall?",' End of transmission.'];
   async function ask(q){
     if(busy||!q.trim())return;q=q.trim();inp.value='';H.push({f:'me',t:q});log.append(msgEl({f:'me',t:q}));log.scrollTop=log.scrollHeight;
-    const r=asstReply(q);busy=true;root.classList.add('talk');const full=(r.t.startsWith('That is the future')||/^(Input required|No data|Query refers|Error|I cannot)/.test(r.t)?'':pickOf(OKS))+r.t+(r.link?'':pickOf(END));
-    const el=h('div',{class:'m bt'});log.append(el);await new Promise(res=>setTimeout(res,400+Math.random()*500));
+    busy=true;root.classList.add('talk');const el=h('div',{class:'m bt',text:'…'});log.append(el);log.scrollTop=log.scrollHeight;
+    const hist=H.slice(-12).map(m=>({role:m.f==='me'?'user':'assistant',content:String(m.t||'')})).filter(m=>m.content);
+    const ai=await askServer('/api/assistant',{messages:hist});let r,full;
+    if(ai){r={t:ai.replace(/\*\*|__|`/g,'').trim()};full=r.t;setMode(true)}
+    else{r=asstReply(q);full=(r.t.startsWith('That is the future')||/^(Input required|No data|Query refers|Error|I cannot)/.test(r.t)?'':pickOf(OKS))+r.t+(r.link?'':pickOf(END));await new Promise(res=>setTimeout(res,400+Math.random()*500))}
     if(!WM.wins.has(win.id))return;
     if(S.ui&&S.ui.motion){el.textContent=full}else{for(let i=0;i<full.length;i+=2){el.textContent=full.slice(0,i+2);log.scrollTop=log.scrollHeight;if(i%8===0)sfx('click');await new Promise(res=>setTimeout(res,16));if(!WM.wins.has(win.id))return}el.textContent=full}
     if(r.link)el.append(h('button',{onclick:()=>WM.open('ie',{url:r.link.url})},r.link.label));
@@ -3215,7 +3227,7 @@ APPS.assistant={title:'Ask-O-Tron 2000',icon:'assistant',w:460,h:560,minW:300,mi
   const chips=['capital of Japan','what is a modem','who invented the telephone','convert 10 km to miles','tell me a joke','what happens in 2030?'];
   win.menubar({Robot:[{label:'Clear conversation',onclick:()=>{H.length=0;saveS();draw();greet()}},'-',{label:'Close',onclick:()=>win.close()}]});
   win.onClose(()=>clearTimeout(tmr));
-  root.append(h('div',{class:'face'},bot,h('div',{class:'st'},h('b',{text:'ASK-O-TRON 2000'}),h('br'),'MEMORY BANKS: ANCIENT HISTORY — DEC 2014',h('br'),'OFFLINE · NOTHING LEAVES THIS COMPUTER')),log,
+  root.append(h('div',{class:'face'},bot,stEl),log,
     h('div',{class:'chips'},chips.map(c=>h('button',{onclick:()=>ask(c)},c))),h('form',{onsubmit:e=>{e.preventDefault();ask(inp.value)}},inp,h('button',{},'SEND')));
   win.body.append(root);win.body.style.padding='0';
   function greet(){if(!H.length){H.push({f:'bot',t:'ASK-O-TRON 2000 ONLINE. My memory banks contain information up to December 2014. Anything after that is the future, and I cannot predict the future. Ask me anything. Within reason.'});saveS()}draw()}
@@ -4355,7 +4367,12 @@ const PERSONA={
 BOTS.forEach(b=>{const P=PERSONA[b.id];if(P&&b.id!=='dot')b.lines=P.idle.concat(P.back)});
 {const sm={lumi:'☁ dreaming of bubbles & snow',bit:'♪ co-op later? :)',mx:'have you eaten yet? (:)',tide:'water ring toss champion (disputed)'};BOTS.forEach(b=>{if(sm[b.id])b.msg=sm[b.id]})}
 
-/* reply engine: Claude via the page (when available) -> your own OpenRouter key -> built-in personality */
+/* reply engine: YOUR BACK END (server.js, key kept secret) -> Claude via the page -> a key pasted in this browser -> built-in personality */
+let _srv=null;
+function serverAI(){ // asks server.js once whether the AI is ready (only possible when the site is opened through http://…)
+  if(!_srv)_srv=(/^https?:$/.test(location.protocol)?fetch('/api/status').then(r=>r.ok?r.json():null).then(j=>j&&j.ok?j:null).catch(()=>null):Promise.resolve(null));return _srv}
+async function askServer(path,body){const st=await serverAI();if(!st||!st.ai)return null;
+  try{const r=await timeout(fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),30000);if(!r.ok)return null;const j=await r.json();return j&&j.reply?String(j.reply):null}catch(e){return null}}
 let _smp,aiNote='';
 async function getSmp(){if(_smp!==undefined)return _smp;try{_smp=(window.claude&&claude.use)?await claude.use('sample'):null}catch(e){_smp=null}return _smp}
 const orKey=()=>{try{return localStorage.getItem('xp.or.key')||''}catch(e){return ''}},orModel=()=>{try{return localStorage.getItem('xp.or.model')||'liquid/lfm-3-1.7b:free'}catch(e){return 'liquid/lfm-3-1.7b:free'}};
@@ -4364,6 +4381,8 @@ function cleanReply(t,b){t=String(t||'').trim().replace(/^["“]|["”]$/g,'');t
 async function personaReply(b,text,H){
   const P=PERSONA[b.id];if(!P||!P.sys)return localReply(b,text);
   const me=(S.msn&&S.msn.nick)||S.name,hist=H.slice(-14).map(m=>(m.f==='me'?me:b.name)+': '+m.t).join('\n');
+  {const msgs=H.slice(-14).map(m=>({role:m.f==='me'?'user':'assistant',content:String(m.t||'')})).filter(m=>m.content);
+   if(msgs.length&&msgs[msgs.length-1].role==='user'){const t=cleanReply(await askServer('/api/chat',{persona:b.id,name:S.name,messages:msgs}),b);if(t){aiNote='';return t}}}
   const prompt=`${LORE}\n\nThe user's name is ${S.name} (display name "${me}").\n\nYour character: ${P.sys}\n\nConversation so far (the last line is the newest message from the user):\n${hist}\n\nWrite ONLY ${b.name}'s next chat message. No narration, no quotes, no name prefix.`;
   try{const sm=await getSmp();if(sm){const r=await timeout(sm(prompt,{cache:false,modelTier:'quick'}),25000);const t=cleanReply(r&&r.text,b);if(t){aiNote='';return t}}}catch(e){if(e&&e.code==='not_granted')_smp=null}
   const key=orKey();
@@ -4387,7 +4406,7 @@ function seedGreeting(b,H){const P=PERSONA[b.id];if(!P||!P.greet.length)return;S
   S.msn.seen[b.id]=now;saveS()}
 function chatHead(b){const P=PERSONA[b.id]||{};return h('div',{class:'chead'},h('button',{class:'chav',title:'View profile','aria-label':'View '+b.name+'\'s profile',onclick:()=>WM.open('profile',{id:b.id})},avImg(b.avatar)),h('div',{style:'min-width:0;flex:1'},h('b',{},stDot(b.status),' '+b.name,null),h('small',{text:b.msg||P.tag||''})),h('button',{class:'btn sm',onclick:()=>WM.open('profile',{id:b.id})},'Profile'))}
 async function aiSettings(){
-  const k=await dlg.show({title:'Chat brain',icon:'question',msg:'Friends reply with AI when this page runs inside Claude. If you host it yourself, you can paste your own OpenRouter API key here. It is stored only in this browser (never uploaded). Leave empty to use the built-in personalities.',input:{value:orKey(),max:200,type:'password',placeholder:'sk-or-v1-…'},buttons:[{t:'Save',v:true},{t:'Cancel',v:null}]});
+  const k=await dlg.show({title:'Chat brain',icon:'question',msg:'Friends reply with AI from the XPerience server (npm start), which keeps the API key secret. If the server is not running, you can paste your own OpenRouter API key here as a backup. It is stored only in this browser (never uploaded). Leave empty to use the built-in personalities.',input:{value:orKey(),max:200,type:'password',placeholder:'sk-or-v1-…'},buttons:[{t:'Save',v:true},{t:'Cancel',v:null}]});
   if(k==null)return;let m=orModel();
   if(k.trim()){const mm=await dlg.show({title:'Chat brain',icon:'question',msg:'Which model should answer?',input:{value:m,max:100},buttons:[{t:'OK',v:true},{t:'Cancel',v:null}]});if(mm)m=mm.trim()||m}
   try{localStorage.setItem('xp.or.key',k.trim());localStorage.setItem('xp.or.model',m)}catch(e){}
@@ -4477,54 +4496,83 @@ system:`<rect x="3" y="4" width="26" height="18" rx="2.5" fill="url(#gS)" ${O}/>
 
 /* ============ System (About this project) ============ */
 /* ✏️ EDIT ME: put your own information here. Anything in [square brackets] is a placeholder. */
+/* ✏️ The project's information (System window). Edit the text here any time. */
 const ABOUT={
   project:'XPerience.exe',
   tagline:'Your little corner of the internet.',
   version:'Version 1.0 · 2026',
-  creator:'[Your name]',
-  role:'[Your role, e.g. student, designer and developer]',
-  school:'[School / course / class name]',
-  contact:'[Your email, website or social link]',
-  bio:'[Write a few sentences about yourself: who you are, what you like, why you made this.]',
+  link:'https://nana-xperience.onrender.com',
+  creator:'Nananub',
+  avatar:11, // the duck
+  role:'RMIT Digital Media student · 21 y/o · emo-enthusiast',
+  school:'RMIT University · Digital Media',
+  email:'nananguyen1765@gmail.com',
+  instagram:'na.lthea_',
+  bio:'Gemini / ENTP. I love ducks, watermelons and playing games, and I’m an emo-enthusiast.',
+  thanks:'Thank you so much for visiting! XPerience.exe is my assignment for the Digital Media course at RMIT University. It is still a work in progress, so if something breaks, looks strange, or you have an idea that would make this little computer feel even more like home, please tell me through Report a Bug. I will keep fixing and improving it. Thanks for spending some of your time here 🦆',
   about:[
-    '[What is XPerience.exe? Describe the project in your own words.]',
-    '[Why did you make it? What feeling or memory did you want to bring back?]',
-    '[Anything you want visitors to try first?]'
+    'XPerience.exe is an interactive nostalgic digital environment inspired by lost media, Y2K aesthetics, retro operating systems and early internet culture. It recreates the experience of using an old personal computer through nostalgic games, music players, creative tools and forgotten digital experiences.',
+    'The project aims to provide a comforting escape for people experiencing stress, emotional exhaustion or disconnection from modern digital life. By encouraging creativity, exploration and personal expression, XPerience.exe allows users to reconnect with childhood memories, rediscover the joy of simple digital interactions and experience the comfort of nostalgia.'
   ],
   tech:[
-    'Front end: HTML, CSS and JavaScript, all in one file (index.html).',
-    'Back end: a small Node.js server (server.js) that keeps the AI key secret.',
-    'AI: free models through OpenRouter power the Chatzee friends and Ask-O-Tron 2000.',
-    'Storage: everything you make stays in your own browser (localStorage and IndexedDB).'
+    ['Front end','HTML, CSS and JavaScript in a single file (index.html): the desktop, windows, 18 arcade games, Pixel Studio, Media Player and every other app. No frameworks.'],
+    ['Back end','A small Node.js server (server.js) with no extra packages. It serves the website and keeps every secret key on the server, never in the browser.'],
+    ['AI characters','The Chatzee friends and Ask-O-Tron 2000 are powered by free AI models through OpenRouter. If one model is busy, the server automatically tries another; if none answer, the characters fall back to built-in replies.'],
+    ['Online database','XPerience Online (accounts, private chats, the XP Boards forum and bug reports) runs on Convex, a real-time database, so new messages appear instantly. Passwords are hashed and never stored as plain text.'],
+    ['Hosting','The website runs on Render and updates automatically whenever new code is pushed to GitHub.'],
+    ['Your own things','Drawings, notes, diary pages, music, recordings and game scores are saved only in your own browser (localStorage and IndexedDB).']
   ],
-  credits:['[Add credits here: teachers, friends who tested it, fonts, sounds, inspiration…]']
+  credits:[
+    ['Lecturer','Tom Nguyen'],
+    ['Testers & best friends','Toto and Ryu, for testing the website, finding bugs and cheering me on'],
+    ['Build buddy','Big thanks to Claude for helping me fix and build this website'],
+    ['Made by','Nananub, with lots of love and too many late nights']
+  ]
 };
-const isPh=s=>/^\[.*\]$/.test(String(s).trim());
-APPS.system={title:'System',icon:'system',w:620,h:560,minW:320,minH:360,single:true,key:()=>'x',render(win,p){
+APPS.system={title:'System',icon:'system',w:640,h:580,minW:320,minH:360,single:true,key:()=>'x',render(win,p){
   let tab=p.tab||'welcome';
-  const ph=(t,tag='span')=>h(tag,{class:isPh(t)?'ph':'',text:t});
   const tabs=[['welcome','Welcome'],['about','About the project'],['creator','Creator'],['credits','Credits']];
   const tb=h('div',{class:'tabs'}),pane=h('div',{class:'syspane'});
-  const go=t=>{tab=t;tb.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));pane.replaceChildren(...({welcome,about,creator,credits})[t]())};
+  const go=t=>{tab=t;tb.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));pane.replaceChildren(...({welcome,about,creator,credits})[t]());pane.scrollTop=0};
   tabs.forEach(([k,t])=>tb.append(h('button',{class:'tabbtn'+(k===tab?' on':''),'data-t':k,onclick:()=>go(k)},t)));
   const app=(id,ic,name,sub)=>h('button',{class:'sysapp',onclick:()=>WM.open(id)},icn(ic,28),h('div',null,h('b',{text:name}),h('small',{text:sub})));
+  const ext=(href,text)=>h('a',{href,target:'_blank',rel:'noopener',text});
   function welcome(){return[
     h('div',{class:'syshero'},h('div',{html:LOGO(72)}),h('div',null,h('h2',{text:ABOUT.project}),h('div',{class:'tag',text:ABOUT.tagline}),h('small',{text:ABOUT.version}))),
-    h('p',null,`Hi ${S.name}! This is a pretend computer from the early 2000s. It is waiting for you to explore it.`),
+    h('p',null,`Hi ${S.name}! This is a pretend computer from the early 2000s, waiting for you to explore it.`),
+    h('b',{text:'How it works'}),
     h('ul',{class:'syslist'},
-      h('li',{text:'Double-click a desktop icon (or use the Start button) to open an app.'}),
-      h('li',{text:'Drag windows by their title bar. The buttons in the corner minimize, maximize and close them.'}),
-      h('li',{text:'Everything you draw, write, record or save stays on this device, in your own browser.'}),
-      h('li',{text:'The friends in Chatzee and the Ask-O-Tron robot are AI characters, not real people.'})),
+      h('li',{text:'Double-click a desktop icon (or use the Start button) to open an app. Drag windows by their title bar; the corner buttons minimize, maximize and close them.'}),
+      h('li',{text:'Everything you draw, write, record or save on this computer stays in your own browser.'}),
+      h('li',{text:'The "Old friends" in Chatzee and the Ask-O-Tron robot are AI characters, not real people.'})),
+    h('div',{class:'sysonline'},h('b',{text:'🌐 XPerience Online: meet real people'}),
+      h('ul',{class:'syslist'},
+        h('li',null,'Make a free account in ',h('b',{text:'Chatzee → 🌐 Online'}),', find friends by their username and chat with them privately.'),
+        h('li',null,'Post and reply on ',h('b',{text:'XP Boards'}),', the public forum: General chat, Music, Art & pixels, Games, and Help.'),
+        h('li',{text:'Be kind, and never share personal details like your address, school or phone number. Block and Report are always there if you need them.'})),
+      h('div',{class:'row'},h('button',{class:'btn',onclick:()=>WM.open('messenger',{tab:'online'})},'💬 Chat online'),h('button',{class:'btn',onclick:()=>WM.open('forum')},'🗂 Open XP Boards'))),
+    h('p',null,'🐞 Found something broken? Open ',h('a',{href:'#',onclick:e=>{e.preventDefault();WM.open('bugs')},text:'Report a Bug'}),' (next to the Recycle Bin) and tell the creator, with a screenshot if you like.'),
     h('b',{text:'Things to try'}),
-    h('div',{class:'sysapps'},app('arcade','arcade','Mini Arcade',GAMES.length+' little games'),app('studio','studio','Pixel Studio','Draw and animate GIFs'),app('media','media','Media Player','Music and !play links'),app('messenger','messenger','Chatzee','Chat with old friends'),app('typing','typing','Typing Tutor','How fast can you type?'),app('space','space','My Space','Diary, planner, notes')),
+    h('div',{class:'sysapps'},app('arcade','arcade','Mini Arcade',GAMES.length+' little games'),app('studio','studio','Pixel Studio','Draw, animate, export GIF & video'),app('media','media','Media Player','Music and !play links'),app('messenger','messenger','Chatzee','AI friends + real people'),app('forum','forum','XP Boards','The public forum'),app('typing','typing','Typing Tutor','How fast can you type?'),app('space','space','My Space','Diary, planner, notes'),app('capsule','capsule','Time Capsule','A photo of your computer')),
     h('label',{class:'row',style:'margin-top:10px'},h('input',{type:'checkbox',checked:S.autoOpen!==false,onchange:e=>{S.autoOpen=e.target.checked;saveS()}}),'Open these welcome windows every time I log in')]}
-  function about(){return[h('h3',{text:'About the project'}),...ABOUT.about.map(t=>ph(t,'p')),h('h3',{text:'How it is built'}),h('ul',{class:'syslist'},ABOUT.tech.map(t=>h('li',null,ph(t))))]}
-  function creator(){return[h('div',{class:'syshero'},avImg(0,'avf sysav'),h('div',null,h('h2',null,ph(ABOUT.creator)),h('div',{class:'tag'},ph(ABOUT.role)))),
-    h('table',{class:'systab'},[['School / course',ABOUT.school],['Contact',ABOUT.contact]].map(([k,v])=>h('tr',null,h('th',{text:k}),h('td',null,ph(v))))),h('h3',{text:'About me'}),ph(ABOUT.bio,'p')]}
-  function credits(){return[h('h3',{text:'Credits'}),h('ul',{class:'syslist'},ABOUT.credits.map(t=>h('li',null,ph(t)))),h('p',{class:'dim',text:'Every song, game, picture and character on this computer is original, made for XPerience.exe.'})]}
+  function about(){return[h('h3',{text:'About the project'}),...ABOUT.about.map(t=>h('p',{text:t})),
+    h('h3',{text:'How it is built'}),h('div',{class:'systech'},ABOUT.tech.map(([k,v])=>h('div',null,h('b',{text:k}),h('span',{text:v})))),
+    ABOUT.link?h('p',{class:'dim'},'Live at ',ext(ABOUT.link,ABOUT.link.replace(/^https?:\/\//,''))):null]}
+  function creator(){return[h('div',{class:'syshero'},avImg(ABOUT.avatar,'avf sysav'),h('div',null,h('h2',{text:ABOUT.creator}),h('div',{class:'tag',text:ABOUT.role}))),
+    h('table',{class:'systab'},
+      h('tr',null,h('th',{text:'Studying'}),h('td',{text:ABOUT.school})),
+      h('tr',null,h('th',{text:'Email'}),h('td',null,ext('mailto:'+ABOUT.email,ABOUT.email))),
+      h('tr',null,h('th',{text:'Instagram'}),h('td',null,ext('https://instagram.com/'+ABOUT.instagram,'@'+ABOUT.instagram))),
+      h('tr',null,h('th',{text:'Online'}),h('td',null,'nananub on ',h('a',{href:'#',onclick:e=>{e.preventDefault();WM.open('messenger',{tab:'online'})},text:'XPerience Online'})))),
+    h('h3',{text:'About me'}),h('p',{text:ABOUT.bio}),
+    h('div',{class:'systhanks'},h('b',{text:'A little thank-you 💌'}),h('p',{text:ABOUT.thanks}))]}
+  function credits(){return[h('h3',{text:'Credits'}),h('div',{class:'systech'},ABOUT.credits.map(([k,v])=>h('div',null,h('b',{text:k}),h('span',{text:v})))),
+    h('p',{class:'dim',text:'Every song, game, picture and character on this computer is original, made for XPerience.exe. Thank you for playing! 🦆'})]}
   win.body.append(h('div',{class:'sys'},tb,pane,h('div',{class:'sysfoot'},h('button',{class:'btn',onclick:()=>win.close()},'OK'))));win.body.style.padding='0';go(tab);
 }};
+addCSS(`.sysonline{background:#eaf3ff;border:1px solid #9cc2f0;border-radius:6px;padding:8px 10px;margin:8px 0}.sysonline .syslist{margin:4px 0 8px}
+.systech{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}.systech>div{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:6px 8px;background:#f6f9fd;border:1px solid #dde6f2;border-radius:4px}.systech b{color:#1f66d8}
+.small .systech>div{grid-template-columns:1fr}.systhanks{background:#fff6fb;border:1px dashed #ff9ad3;border-radius:6px;padding:8px 12px;margin-top:10px}.systhanks p{margin:4px 0 0}`);
 
 /* ============ Typing Tutor ============ */
 const TY_EASY='the and you can play sun cat dog run blue green happy home fish tree jump light star time day book cake moon game song rain snow bird road map cup pen hat bag red pink sky cloud kind nice warm cold fast slow big small open door shop walk talk smile friend music dance draw paint leaf seed hill lake boat sand shell wave milk tea toast apple pear lime plum jam bed lamp desk chair word type key note page file save disk mouse click screen'.split(' ');
@@ -4602,6 +4650,322 @@ addCSS(`
 .tybig span{font:800 56px var(--ui);color:#1f66d8;display:block;line-height:1}.tybig small{font-weight:700}.tynew{font-weight:800;color:#d6409a}
 .tyhist{font-size:12.5px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}.typill{background:#fff;border:1px solid #9cc2f0;border-radius:10px;padding:1px 8px}
 .small .tymodes{grid-template-columns:repeat(2,1fr)}
+`);
+
+/* ============ XPerience Online: real people, via Convex ============ */
+/* Chatzee "Online" tab (find people by username + private messages) and XP Boards (public forum).
+   The website talks to Convex (an online database). The Convex address comes from server.js (/api/status). */
+const ONL={client:null,loading:null,watch:null,seen:{}};
+const onlTok=()=>(S&&S.online&&S.online.token)||'';
+function onlLoad(){
+  if(ONL.loading)return ONL.loading;
+  ONL.loading=(async()=>{
+    if(!/^https?:$/.test(location.protocol))throw new Error('file');
+    const st=await fetch('/api/status').then(r=>r.json()).catch(()=>null);
+    if(!st)throw new Error('noserver');if(!st.convexUrl)throw new Error('noconvex');
+    if(!window.convex)await new Promise((res,rej)=>{const s=document.createElement('script');s.src='/convex.js';s.onload=res;s.onerror=()=>rej(new Error('lib'));document.head.append(s)});
+    if(!window.convex||!convex.ConvexClient)throw new Error('lib');
+    ONL.client=new convex.ConvexClient(st.convexUrl);return ONL.client})();
+  ONL.loading.catch(()=>{ONL.loading=null});return ONL.loading}
+const onlErr=e=>{const d=e&&e.data;if(typeof d==='string'&&d)return d;const m=String(e&&e.message||'');return /^(file|noserver|noconvex|lib)$/.test(m)?onlWhy(m):'Something went wrong. Please try again.'};
+const onlWhy=k=>({file:'XPerience Online only works when the site is opened through its web address (npm start, then http://localhost:3000).',noserver:'The XPerience server is not running. Start it with npm start.',noconvex:'XPerience Online is not set up yet. Run "npx.cmd convex dev" once in the project folder (see README), then restart the server.',lib:'Could not load the Convex library. Check your internet connection.'})[k]||k;
+async function onlCall(kind,name,args){const c=await onlLoad();return c[kind](name,args)}
+function onlSub(name,args,cb,win){let un=null,dead=false;onlLoad().then(c=>{if(dead)return;un=c.onUpdate(name,args,v=>{if(!dead)cb(v)},e=>{if(!dead)cb(undefined,e)})}).catch(e=>{if(!dead)cb(undefined,e)});
+  const stop=()=>{dead=true;try{un&&un()}catch(e){}};if(win)win.onClose(stop);return stop}
+const onlAgo=ts=>{const s=(Date.now()-ts)/1000;return s<60?'just now':s<3600?Math.floor(s/60)+' min ago':s<86400?Math.floor(s/3600)+' h ago':s<604800?Math.floor(s/86400)+' d ago':fmtDate(ts)};
+const ONL_SAFE='These are real people. Never share your address, school, phone number or passwords. If anyone makes you uncomfortable, use Block and Report.';
+
+/* sign in / create account, then onReady(me). Returns nothing; re-renders host itself. */
+function onlGate(host,onReady,win,{why='to use XPerience Online'}={}){
+  let stop=null;const err=h('div',{class:'onlerr',role:'alert'});
+  const wait=t=>host.replaceChildren(h('div',{class:'onlwait',text:t||'Connecting to XPerience Online…'}));
+  function form(mode){
+    if(stop){stop();stop=null}
+    let av=S.avatar||0;const nm=h('input',{class:'inp',maxlength:20,autocomplete:'username','aria-label':'Online username',placeholder:'username',value:(S.online&&S.online.name)||''}),pw=h('input',{class:'inp',type:'password',autocomplete:mode==='new'?'new-password':'current-password','aria-label':'Password',placeholder:'password'});
+    const avs=h('div',{class:'onlavs',role:'radiogroup','aria-label':'Picture'},AVATARS.map((a,i)=>h('button',{class:'onlav'+(i===av?' on':''),title:a.n,'aria-label':a.n,onclick:e=>{av=i;avs.querySelectorAll('.onlav').forEach(b=>b.classList.toggle('on',b===e.currentTarget))}},avImg(i))));
+    const go=async()=>{err.textContent='';btn.disabled=true;
+      try{const r=mode==='new'?await onlCall('action','accounts:signup',{name:nm.value,password:pw.value,avatar:av}):await onlCall('action','accounts:login',{name:nm.value,password:pw.value});
+        S.online={token:r.token,name:nm.value.trim()};saveS();sfx('chime');onlWatch();start()}
+      catch(e){err.textContent=onlErr(e);sfx('error')}finally{btn.disabled=false}};
+    const btn=h('button',{class:'btn',style:'font-weight:700',onclick:go},mode==='new'?'Create my account':'Sign in');
+    [nm,pw].forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter')go()}));
+    host.replaceChildren(h('div',{class:'onlgate'},
+      h('div',{class:'onlhead'},h('span',{text:'🌐'}),h('div',null,h('b',{text:'XPerience Online'}),h('small',{text:'Sign in '+why+'.'}))),
+      h('div',{class:'tabs'},h('button',{class:'tabbtn'+(mode==='in'?' on':''),onclick:()=>form('in')},'Sign in'),h('button',{class:'tabbtn'+(mode==='new'?' on':''),onclick:()=>form('new')},'Create account')),
+      h('label',null,'Username',nm),h('label',null,'Password',pw),mode==='new'?h('div',null,h('small',{text:'Your picture'}),avs):null,
+      mode==='new'?h('small',{class:'dim',text:'3–20 letters, numbers, _ or . · password at least 6 characters. This is a separate account from your log-on profile.'}):null,
+      err,btn,h('div',{class:'onlsafe',text:'🛡 '+ONL_SAFE})));
+    setTimeout(()=>(nm.value?pw:nm).focus(),30)}
+  function start(){
+    if(!onlTok()){form('in');return}
+    wait();
+    stop=onlSub('users:me',{token:onlTok()},(me,e)=>{
+      if(e){host.replaceChildren(h('div',{class:'onlwait'},h('div',{text:'⚠ '+onlErr(e)}),h('button',{class:'btn',style:'margin-top:8px',onclick:()=>{ONL.loading=null;start()}},'Try again')));return}
+      if(me===undefined)return;
+      if(me===null){S.online={name:S.online&&S.online.name};saveS();form('in');err.textContent='Please sign in again.';return}
+      onReady(me,()=>{if(stop)stop();onlCall('mutation','users:logout',{token:onlTok()}).catch(()=>{});S.online={name:me.name};saveS();form('in')})},win)}
+  start()}
+
+/* new private messages pop up as notifications (while you are signed in) */
+function onlWatch(){
+  if(ONL.watch){ONL.watch();ONL.watch=null}if(!onlTok())return;
+  let first=true;
+  let firstBug=true,lastBugs=0;
+  const stopBugs=onlSub('bugs:newCount',{token:onlTok()},(n,e)=>{if(e||typeof n!=='number')return;const init=firstBug;firstBug=false;
+    if(!init&&n>lastBugs)notify(n===1?'Someone sent a new bug report.':`You have ${n} new bug reports.`,{title:'Report a Bug (admin)',icon:'bug',onclick:()=>WM.open('bugs',{tab:'inbox'})});lastBugs=n});
+  const stopDm=onlSub('dm:myConvos',{token:onlTok()},list=>{if(!Array.isArray(list))return;const init=first;first=false;
+    list.forEach(c=>{const k=c.id;if(!init&&c.unread&&ONL.seen[k]!==c.lastAt){const open=[...WM.wins.values()].some(w=>w.key==='dm:'+c.other.id&&!w.min);if(!open)notify(`${c.other.name}: ${c.lastText}`,{title:'New message (XPerience Online)',icon:'messenger',onclick:()=>WM.open('dm',{id:c.other.id,name:c.other.name})})}ONL.seen[k]=c.lastAt})});
+  ONL.watch=()=>{stopDm();stopBugs()}}
+
+function onlProfile(userId){onlCall('query','users:profile',{userId}).then(u=>{if(!u){dlg.alert('This person is not on XPerience Online any more.',{icon:'info'});return}
+  dlg.show({title:u.name,icon:'messenger',msg:`${u.bio||'(no bio yet)'}\n\nOn XPerience Online since ${fmtDate(u.createdAt)}.`,buttons:[{t:'Send a message',v:'m'},{t:'Close',v:null}]}).then(r=>{if(r==='m')WM.open('dm',{id:u.id,name:u.name})})}).catch(e=>dlg.alert(onlErr(e),{icon:'warn'}))}
+async function onlReport(kind,targetId,label){
+  const r=await dlg.show({title:'Report',icon:'warn',msg:`Tell the admin what is wrong with ${label}. They will check it.`,input:{value:'',max:300,placeholder:'e.g. rude, spam, made me uncomfortable'},buttons:[{t:'Send report',v:true},{t:'Cancel',v:null}]});
+  if(r==null)return;try{await onlCall('mutation','users:report',{token:onlTok(),kind,targetId:String(targetId),reason:String(r).trim()||'(no reason given)'});notify('Thanks. Your report was sent to the admin.',{icon:'info',silent:true})}catch(e){dlg.alert(onlErr(e),{icon:'warn'})}}
+
+/* ---- Chatzee: the "Online" tab ---- */
+function chatzeeOnline(pane,host){const subs=[];const win={onClose:f=>subs.push(f)};host.onClose(()=>subs.forEach(f=>f()));
+  const box=h('div',{class:'onl'});pane.append(box);
+  onlGate(box,(me,signOut)=>{
+    const conv=h('div',{class:'ct'}),res=h('div',{class:'onlres'}),q=h('input',{class:'inp',placeholder:'Find people by username…','aria-label':'Find people by username',maxlength:20});
+    let t=0;q.addEventListener('input',()=>{clearTimeout(t);const s=q.value.trim();if(!s){res.replaceChildren();return}t=setTimeout(async()=>{try{const L=await onlCall('query','users:search',{token:onlTok(),q:s});
+      res.replaceChildren(...(L.length?L.map(u=>h('div',{class:'co'},h('span',{onclick:()=>onlProfile(u.id),title:'View profile'},avImg(u.avatar)),h('div',{style:'min-width:0;flex:1'},h('b',{text:u.name}),h('small',{text:u.bio||''})),h('button',{class:'btn sm',onclick:()=>WM.open('dm',{id:u.id,name:u.name})},'Message'))):[h('div',{class:'dim',style:'padding:4px 8px',text:'Nobody with that name yet.'})]))}catch(e){res.replaceChildren(h('div',{class:'onlerr',text:onlErr(e)}))}},250)});
+    const settings=()=>onlSettings(me);
+    box.replaceChildren(
+      h('div',{class:'me'},avImg(me.avatar),h('div',{class:'meinfo'},h('b',{text:me.name+(me.admin?' (admin)':'')}),h('small',{text:'Signed in to XPerience Online'}),h('div',{class:'row'},h('button',{class:'btn sm',onclick:settings},'⚙ My profile'),h('button',{class:'btn sm',onclick:signOut},'Sign out')))),
+      h('div',{style:'padding:6px 8px'},q),res,h('div',{class:'grp',text:'Conversations'}),conv,
+      h('div',{class:'note',text:'🛡 '+ONL_SAFE}));
+    onlSub('dm:myConvos',{token:onlTok()},(L,e)=>{if(e){conv.replaceChildren(h('div',{class:'onlerr',text:onlErr(e)}));return}if(!L)return;
+      conv.replaceChildren(...(L.length?L.map(c=>h('div',{class:'co',tabindex:0,role:'button',onclick:()=>WM.open('dm',{id:c.other.id,name:c.other.name}),onkeydown:e=>{if(e.key==='Enter')WM.open('dm',{id:c.other.id,name:c.other.name})}},avImg(c.other.avatar),h('div',{style:'min-width:0;flex:1'},h('b',{},c.unread?h('span',{class:'onldot',title:'New message'}):null,' '+c.other.name),h('small',{text:(c.blocked?'(blocked) ':'')+c.lastText})),h('small',{class:'dim',text:onlAgo(c.lastAt)}))):[h('div',{class:'emptymsg',text:'No conversations yet. Find someone by their username above.'})]))},win)
+  },win,{why:'to chat with real people'})}
+
+async function onlSettings(me){
+  const blocks=await onlCall('query','users:myBlocks',{token:onlTok()}).catch(()=>[]);
+  const bio=h('textarea',{class:'inp',rows:3,maxlength:200,'aria-label':'Bio'});bio.value=me.bio||'';
+  const dms=h('select',{class:'sel','aria-label':'Who can message me'},h('option',{value:'everyone',text:'Anyone can start a chat with me',selected:me.dmsFrom==='everyone'}),h('option',{value:'nobody',text:'Nobody new (only people I already chat with)',selected:me.dmsFrom==='nobody'}));
+  const bl=h('div',{class:'col'},blocks.length?blocks.map(u=>h('div',{class:'row'},h('span',{text:u.name,style:'flex:1'}),h('button',{class:'btn sm',onclick:async e=>{await onlCall('mutation','users:unblock',{token:onlTok(),userId:u.id});e.currentTarget.closest('.row').remove()}},'Unblock'))):[h('small',{class:'dim',text:'You have not blocked anyone.'})]);
+  const ok=await dlg.show({title:'My XPerience Online profile',icon:'messenger',body:h('div',{class:'col',style:'gap:8px;min-width:280px'},h('label',{class:'col'},'Bio (everyone can see it)',bio),h('label',{class:'col'},'Who can message me',dms),h('b',{text:'Blocked people'}),bl),buttons:[{t:'Save',v:true},{t:'Cancel',v:null}]});
+  if(ok)try{await onlCall('mutation','users:updateProfile',{token:onlTok(),bio:bio.value,dmsFrom:dms.value});notify('Profile saved.',{icon:'messenger',silent:true})}catch(e){dlg.alert(onlErr(e),{icon:'warn'})}}
+
+/* ---- a private conversation window ---- */
+APPS.dm={title:'Online chat',icon:'messenger',w:420,h:480,minW:300,minH:320,key:p=>'dm:'+p.id,render(win,p){
+  win.setTitle(`${p.name||'Online chat'} - XPerience Online`);
+  const host=h('div',{style:'height:100%;display:flex;flex-direction:column'});win.body.append(host);win.body.style.padding='0';
+  onlGate(host,me=>{
+    const log=h('div',{class:'log',role:'log','aria-live':'polite'}),ta=h('textarea',{class:'inp','aria-label':'Message',maxlength:1000,placeholder:'Type a message and press Enter'}),info=h('div',{class:'typ'});
+    const head=h('div',{class:'chead'}),sendB=h('button',{class:'btn'},'Send');let last=null,readAt=0,lastCount=-1;
+    async function send(){const t=ta.value.trim();if(!t)return;sendB.disabled=true;try{await onlCall('mutation','dm:send',{token:onlTok(),to:p.id,body:t});ta.value='';sfx('blipg')}catch(e){info.textContent='⚠ '+onlErr(e);sfx('error')}finally{sendB.disabled=false;ta.focus()}}
+    sendB.onclick=send;ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
+    const emos=h('div',{class:'emos'},EMO.map(e=>h('button',{title:e.n+'  '+e.code,'aria-label':e.n,onclick:()=>{ta.value+=' '+e.code+' ';ta.focus()}},h('img',{class:'emo',src:emoURL(e),alt:e.code}))));
+    host.replaceChildren(h('div',{class:'chat'},head,log,info,h('div',{class:'inb'},emos,ta,sendB)));
+    onlSub('dm:messages',{token:onlTok(),userId:p.id},(d,e)=>{
+      if(e){info.textContent='⚠ '+onlErr(e);return}if(!d)return;
+      const o=d.other;win.setTitle(`${o.name} - XPerience Online`);
+      head.replaceChildren(h('button',{class:'chav',title:'View profile',onclick:()=>onlProfile(o.id)},avImg(o.avatar)),h('div',{style:'min-width:0;flex:1'},h('b',{text:o.name}),h('small',{text:o.bio||'Real person on XPerience Online'})),
+        h('button',{class:'btn sm',onclick:async()=>{try{if(d.iBlocked)await onlCall('mutation','users:unblock',{token:onlTok(),userId:o.id});else if(await dlg.confirm(`Block ${o.name}? You won't see each other's messages or posts.`,{icon:'warn',ok:'Block',cancel:'Cancel'}))await onlCall('mutation','users:block',{token:onlTok(),userId:o.id})}catch(err){dlg.alert(onlErr(err),{icon:'warn'})}}},d.iBlocked?'Unblock':'Block'),
+        h('button',{class:'btn sm',onclick:()=>onlReport('user',o.id,o.name)},'Report'));
+      const js=JSON.stringify(d.list);if(js!==last){const atBottom=log.scrollHeight-log.scrollTop-log.clientHeight<40||last===null;last=js;
+        log.replaceChildren(h('div',{class:'sys',text:'🔒 Private chat with a real person. '+ONL_SAFE}),...d.list.map(m=>h('div',{class:'m '+(m.mine?'me':'them')},h('small',{text:(m.mine?me.name:o.name)+' · '+fmtTime(m.at)}),h('div',{},...emoNodes(m.body)))));
+        if(atBottom)log.scrollTop=log.scrollHeight;const lm=d.list[d.list.length-1];if(lastCount>=0&&d.list.length>lastCount&&lm&&!lm.mine)sfx('msg');lastCount=d.list.length}
+      const blockedNote=d.blocked?(d.iBlocked?`You blocked ${o.name}.`:`You can't message ${o.name}.`):(!d.convoId&&!d.theyAcceptDMs?`${o.name} isn't accepting new chats right now.`:'');
+      info.textContent=blockedNote;ta.disabled=!!d.blocked||(!d.convoId&&!d.theyAcceptDMs);sendB.disabled=ta.disabled;
+      const newest=d.list.length?d.list[d.list.length-1].at:0;if(newest>readAt&&!win.min){readAt=newest;onlCall('mutation','dm:markRead',{token:onlTok(),userId:p.id}).catch(()=>{})}
+    },win);setTimeout(()=>ta.focus(),60);
+  },win,{why:'to chat with real people'});
+}};
+
+/* ---- XP Boards: the public forum ---- */
+const FBOARDS=[['all','All topics','🗂'],['general','General chat','💬'],['music','Music','🎵'],['art','Art & pixels','🎨'],['games','Games','🎮'],['help','Help & questions','❓']];
+APPS.forum={title:'XP Boards',icon:'forum',w:820,h:600,minW:340,minH:380,single:true,key:()=>'x',render(win,p){
+  win.tip('A public message board for everyone on XPerience Online. Anyone can read; sign in to post. Be kind, and never share personal details.');
+  let board='all',view={k:'list'},stop=null,me=null;
+  const side=h('div',{class:'fside'}),main=h('div',{class:'fmain'}),acct=h('div',{class:'facct'});
+  win.body.append(h('div',{class:'forum'},side,main));win.body.style.padding='0';
+  const stopSub=()=>{if(stop){stop();stop=null}};win.onClose(stopSub);
+  function drawSide(){side.replaceChildren(h('div',{class:'flogo'},h('span',{text:'XP'}),h('b',{text:'Boards'})),
+    h('button',{class:'btn',style:'font-weight:700;width:100%',onclick:()=>needMe(()=>show({k:'new'}))},'✏ New post'),
+    ...FBOARDS.map(([k,t,ic])=>h('button',{class:'fboard'+(view.k==='list'&&board===k?' on':''),onclick:()=>{board=k;show({k:'list'})}},ic+' '+t)),
+    me&&me.admin?h('button',{class:'fboard',onclick:()=>show({k:'reports'})},'🚩 Reports (admin)'):'',acct)}
+  function drawAcct(){acct.replaceChildren(me?h('div',{class:'col'},h('div',{class:'row'},avImg(me.avatar),h('b',{text:me.name})),h('button',{class:'btn sm',onclick:()=>WM.open('messenger',{tab:'online'})},'💬 My messages')):h('div',{class:'col'},h('small',{class:'dim',text:'You are reading as a guest.'}),h('button',{class:'btn sm',onclick:()=>needMe(()=>{})},'Sign in / create account')))}
+  // keep track of who is signed in (for posting)
+  if(onlTok())onlSub('users:me',{token:onlTok()},u=>{if(u!==undefined){me=u;drawSide();drawAcct()}},win);
+  function needMe(then){if(me){then();return}const g=h('div',{style:'min-width:300px;max-width:420px'});let close=null,fired=false;
+    dlg.show({title:'XPerience Online',icon:'messenger',body:g,buttons:[{t:'Close',v:null}],bind:d=>close=d});
+    onlGate(g,u=>{if(fired)return;fired=true;me=u;drawSide();drawAcct();if(close)close(null);if(!ONL.watch)onlWatch();
+      if(!onlTok())return;onlSub('users:me',{token:onlTok()},x=>{if(x!==undefined){me=x;drawSide();drawAcct()}},win);then()},null,{why:'to post on XP Boards'})}
+  function show(v){view=v;stopSub();drawSide();({list,post,new:newPost,reports})[v.k]()}
+  function list(){const L=FBOARDS.find(b=>b[0]===board);main.replaceChildren(h('div',{class:'fhead'},h('h2',{text:L[2]+' '+L[1]})),h('div',{class:'onlwait',text:'Loading posts…'}));
+    stop=onlSub('forum:listPosts',board==='all'?{token:onlTok()||undefined}:{token:onlTok()||undefined,board},(rows,e)=>{
+      const body=e?[h('div',{class:'onlerr',text:onlErr(e)})]:!rows?[]:rows.length?[h('div',{class:'ftable'},h('div',{class:'frow fth'},h('span',{text:'Topic'}),h('span',{text:'Replies'}),h('span',{text:'Last activity'})),
+        ...rows.map(r=>h('button',{class:'frow',onclick:()=>show({k:'post',id:r.id})},h('span',{class:'ftopic'},avImg(r.author.avatar),h('span',null,h('b',{text:r.title}),h('small',{text:`${FBOARDS.find(b=>b[0]===r.board)?.[2]||''} by ${r.author.name} · ${r.preview}`}))),h('span',{text:String(r.replyCount)}),h('span',{text:onlAgo(r.lastAt)}))))]
+        :[h('div',{class:'emptymsg',style:'padding:30px',text:'No posts here yet. Be the first!'})];
+      main.replaceChildren(h('div',{class:'fhead'},h('h2',{text:L[2]+' '+L[1]}),h('button',{class:'btn',onclick:()=>needMe(()=>show({k:'new'}))},'✏ New post')),...body)},win)}
+  function post(){main.replaceChildren(h('div',{class:'onlwait',text:'Loading…'}));
+    stop=onlSub('forum:getPost',{token:onlTok()||undefined,postId:view.id},(d,e)=>{
+      if(e){main.replaceChildren(h('div',{class:'onlerr',text:onlErr(e)}));return}if(d===undefined)return;
+      if(d===null){main.replaceChildren(h('div',{class:'emptymsg',style:'padding:30px',text:'This post was removed.'}),h('button',{class:'btn',onclick:()=>show({k:'list'})},'← Back'));return}
+      const del=(kind,id)=>async()=>{if(!(await dlg.confirm('Delete this '+kind+'?',{icon:'warn',ok:'Delete',cancel:'Keep'})))return;try{await onlCall('mutation','forum:remove',{token:onlTok(),kind,id});if(kind==='post')show({k:'list'})}catch(err){dlg.alert(onlErr(err),{icon:'warn'})}};
+      const tools=(kind,id,author,can)=>h('div',{class:'ftools'},can?h('button',{class:'btn sm',onclick:del(kind,id)},'Delete'):null,me&&author.id!==me.id?h('button',{class:'btn sm',onclick:()=>onlReport(kind,id,kind==='post'?'this post':'this reply')},'Report'):null,me&&author.id!==me.id?h('button',{class:'btn sm',onclick:()=>WM.open('dm',{id:author.id,name:author.name})},'Message '+author.name):null);
+      const ta=h('textarea',{class:'inp',rows:3,maxlength:2000,'aria-label':'Your reply',placeholder:me?'Write a reply…':'Sign in to reply'}),msg=h('div',{class:'onlerr'});
+      const send=()=>needMe(async()=>{const t=ta.value.trim();if(!t)return;try{await onlCall('mutation','forum:reply',{token:onlTok(),postId:d.id,body:t});ta.value='';msg.textContent='';sfx('blipg')}catch(err){msg.textContent=onlErr(err)}});
+      const keep=main.querySelector('.freplybox textarea');const draft=keep?keep.value:'';
+      main.replaceChildren(h('button',{class:'btn sm',onclick:()=>show({k:'list'})},'← All posts'),
+        h('div',{class:'fpost'},h('div',{class:'fauthor'},h('button',{class:'chav',onclick:()=>onlProfile(d.author.id),title:'View profile'},avImg(d.author.avatar)),h('div',null,h('b',{text:d.author.name}),h('small',{text:fmtDate(d.createdAt)+' '+fmtTime(d.createdAt)}))),
+          h('h2',{text:d.title}),h('div',{class:'fbody'},...emoNodes(d.body)),tools('post',d.id,d.author,d.canDelete)),
+        h('div',{class:'grp',text:`${d.replies.length} repl${d.replies.length===1?'y':'ies'}`}),
+        ...d.replies.map(r=>h('div',{class:'freply'},h('div',{class:'fauthor'},avImg(r.author.avatar),h('div',null,h('b',{text:r.author.name}),h('small',{text:onlAgo(r.createdAt)}))),h('div',{class:'fbody'},...emoNodes(r.body)),tools('reply',r.id,r.author,r.canDelete))),
+        h('div',{class:'freplybox'},ta,msg,h('button',{class:'btn',onclick:send},'Post reply')));ta.value=draft},win)}
+  function newPost(){const bs=h('select',{class:'sel','aria-label':'Board'},FBOARDS.slice(1).map(([k,t,ic])=>h('option',{value:k,selected:k===board,text:ic+' '+t}))),ti=h('input',{class:'inp',maxlength:120,placeholder:'Title','aria-label':'Title'}),bo=h('textarea',{class:'inp',rows:8,maxlength:3000,placeholder:'What do you want to say?','aria-label':'Post'}),msg=h('div',{class:'onlerr'});
+    const go=async e=>{const btn=e.currentTarget;msg.textContent='';
+      if(!ti.value.trim()){msg.textContent='Please give your post a title.';ti.focus();return}
+      if(!bo.value.trim()){msg.textContent='Please write something in your post first.';bo.focus();return}
+      btn.disabled=true;try{const id=await onlCall('mutation','forum:createPost',{token:onlTok(),board:bs.value,title:ti.value,body:bo.value});sfx('save');board=bs.value;show({k:'post',id})}catch(err){msg.textContent=onlErr(err);btn.disabled=false}};
+    main.replaceChildren(h('div',{class:'fhead'},h('h2',{text:'✏ New post'})),h('div',{class:'col',style:'gap:8px;max-width:620px'},h('label',{class:'col'},'Board',bs),h('label',{class:'col'},'Title',ti),h('label',{class:'col'},'Message',bo),msg,
+      h('small',{class:'dim',text:'🛡 Everyone can read this. Never post personal details like your address, school or phone number.'}),h('div',{class:'row'},h('button',{class:'btn',style:'font-weight:700',onclick:go},'Post it'),h('button',{class:'btn',onclick:()=>show({k:'list'})},'Cancel'))));setTimeout(()=>ti.focus(),30)}
+  function reports(){main.replaceChildren(h('div',{class:'onlwait',text:'Loading reports…'}));
+    stop=onlSub('users:reports',{token:onlTok()},(L,e)=>{if(e||!L){if(e)main.replaceChildren(h('div',{class:'onlerr',text:onlErr(e)}));return}
+      main.replaceChildren(h('div',{class:'fhead'},h('h2',{text:'🚩 Reports'})),...(L.length?L.map(r=>h('div',{class:'freply'},h('b',{text:`${r.kind} reported by ${r.byName}`}),h('small',{text:onlAgo(r.createdAt)}),h('div',{class:'fbody',text:r.reason}),
+        h('div',{class:'ftools'},r.kind==='post'?h('button',{class:'btn sm',onclick:()=>show({k:'post',id:r.targetId})},'Open post'):null,(r.kind==='post'||r.kind==='reply')?h('button',{class:'btn sm',onclick:async()=>{try{await onlCall('mutation','forum:remove',{token:onlTok(),kind:r.kind,id:r.targetId});await onlCall('mutation','users:closeReport',{token:onlTok(),reportId:r._id})}catch(err){dlg.alert(onlErr(err),{icon:'warn'})}}},'Remove it'):null,
+          r.kind==='user'?h('button',{class:'btn sm',onclick:async()=>{if(await dlg.confirm('Ban this account? They will be signed out and hidden.',{icon:'warn',ok:'Ban',cancel:'Cancel'}))try{await onlCall('mutation','users:ban',{token:onlTok(),userId:r.targetId});await onlCall('mutation','users:closeReport',{token:onlTok(),reportId:r._id})}catch(err){dlg.alert(onlErr(err),{icon:'warn'})}}},'Ban account'):null,
+          h('button',{class:'btn sm',onclick:()=>onlCall('mutation','users:closeReport',{token:onlTok(),reportId:r._id}).catch(()=>{})},'Dismiss')))):[h('div',{class:'emptymsg',style:'padding:30px',text:'No open reports. 🎉'})]))},win)}
+  drawAcct();show(p.post?{k:'post',id:p.post}:{k:'list'});
+}};
+Object.assign(IC,{forum:`<rect x="3" y="4" width="20" height="14" rx="2.5" fill="url(#gB)" ${O}/><path d="M8 18l-2 5 6-5" fill="url(#gB)" ${O}/><rect x="11" y="11" width="18" height="12" rx="2.5" fill="url(#gY)" ${O}/><path d="M24 23l3 5-7-5" fill="url(#gY)" ${O}/><path d="M7 9h12M7 13h8" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/><path d="M15 15.5h10M15 19h7" stroke="#7a5a00" stroke-width="1.5" stroke-linecap="round"/>`});
+
+/* ---- Report a Bug: anyone can send one (with screenshots); the admin (nananub) reads them ---- */
+Object.assign(IC,{bug:`<path d="M10 8.5l-3-3M22 8.5l3-3M7 15H3M29 15h-4M7 21l-4 2M25 21l4 2M8 26l-3 3M24 26l3 3" stroke="#1b2a4a" stroke-width="1.6" stroke-linecap="round"/><circle cx="16" cy="9.5" r="5" fill="#3a3f4a" ${O}/><circle cx="14" cy="8.6" r="1.1" fill="#fff"/><circle cx="18" cy="8.6" r="1.1" fill="#fff"/><ellipse cx="16" cy="19.5" rx="9.5" ry="10" fill="#ef4b34" ${O}/><path d="M16 9.8v19.6" stroke="#1b2a4a" stroke-width="1.5"/><circle cx="11.5" cy="16" r="2" fill="#2a1a1a"/><circle cx="20.5" cy="16" r="2" fill="#2a1a1a"/><circle cx="11" cy="23" r="1.7" fill="#2a1a1a"/><circle cx="21" cy="23" r="1.7" fill="#2a1a1a"/><path d="M10 13.5c1-1.6 2.4-2.4 4-2.6" stroke="#ffb3a6" stroke-width="1.3" fill="none" stroke-linecap="round"/>`});
+const BUG_MAX=3,BUG_BYTES=5*1024*1024;
+/* make big screenshots small enough (max 5 MB, max 2200 px) */
+async function bugShrink(file){
+  if(file.size<=BUG_BYTES&&file.size<=1.5*1024*1024)return file;
+  if(file.type==='image/gif'&&file.size<=BUG_BYTES)return file;
+  try{const bmp=await createImageBitmap(file);const k=Math.min(1,2200/Math.max(bmp.width,bmp.height));
+    const c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+    for(const q of [.9,.8,.65,.5]){const b=await new Promise(r=>c.toBlob(r,'image/jpeg',q));if(b&&b.size<=BUG_BYTES)return new File([b],(file.name||'screenshot').replace(/\.\w+$/,'')+'.jpg',{type:'image/jpeg'})}}catch(e){}
+  return file.size<=BUG_BYTES?file:null}
+APPS.bugs={title:'Report a Bug',icon:'bug',w:520,h:600,minW:320,minH:380,single:true,key:()=>'x',render(win,p){
+  win.tip('Bug reports go straight to the creator of XPerience.exe. You don\'t need an account, but signing in to XPerience Online lets them reply to you.');
+  let tab=p.tab||'report',me=null,stopMe=null,stopList=null;
+  const tb=h('div',{class:'tabs'}),pane=h('div',{class:'bugpane'});
+  const go=t=>{tab=t;if(stopList){stopList();stopList=null}drawTabs();(t==='inbox'&&me&&me.admin?inbox:report)()};
+  win.onParams=q=>{if(q.tab)go(q.tab)};
+  function drawTabs(){tb.replaceChildren(h('button',{class:'tabbtn'+(tab!=='inbox'?' on':''),onclick:()=>go('report')},'🐞 Report a bug'),me&&me.admin?h('button',{class:'tabbtn'+(tab==='inbox'?' on':''),onclick:()=>go('inbox')},'📥 Bug inbox (admin)'):'')}
+  win.body.append(h('div',{class:'bugwin'},tb,pane));win.body.style.padding='0';
+  if(onlTok())stopMe=onlSub('users:me',{token:onlTok()},(u,e)=>{if(e){if(tab==='inbox')go('report');return}const was=!!(me&&me.admin);me=u||null;if(tab==='inbox'){if(!(me&&me.admin))go('report');else if(!was)go('inbox');else drawTabs()}else{drawTabs();if(!sent)report()}},win);
+  let files=[],sent=false,draft={title:'',details:'',where:'',guest:S.name||''};
+
+  function report(){
+    sent=false;
+    const where=h('select',{class:'bugin','aria-label':'Which part of XPerience has the bug?',onchange:e=>draft.where=e.target.value},
+      h('option',{value:'',text:'Choose one…'}),...[...sysItems().filter(i=>i.id!=='bugs'&&i.id!=='bin').map(i=>i.name),'My Diary','Notepad','Calendar','Timer','Settings','Log-on / profiles','Start menu or taskbar','Somewhere else / not sure'].map(n=>h('option',{value:n,text:n,selected:draft.where===n})));
+    const title=h('input',{class:'bugin',maxlength:120,placeholder:'e.g. Flappy Duck freezes after 20 points',value:draft.title,oninput:e=>draft.title=e.target.value});
+    const details=h('textarea',{class:'bugin',rows:6,maxlength:3000,placeholder:'What did you do? What did you expect? What happened instead?\nThe more steps you write, the easier it is to fix.',value:draft.details,oninput:e=>draft.details=e.target.value});
+    const guest=h('input',{class:'bugin',maxlength:30,placeholder:'optional',value:draft.guest,oninput:e=>draft.guest=e.target.value});
+    const thumbs=h('div',{class:'bugthumbs'}),err=h('div',{class:'onlerr',role:'alert'});
+    const pick=h('input',{type:'file',accept:'image/*',multiple:true,style:'display:none',onchange:()=>{add(pick.files);pick.value=''}});
+    async function add(list){err.textContent='';
+      for(const f of [...list]){if(!/^image\//.test(f.type)){err.textContent='Only pictures can be attached (PNG, JPG, GIF or WebP).';continue}
+        if(files.length>=BUG_MAX){err.textContent=`You can attach up to ${BUG_MAX} pictures.`;break}
+        const small=await bugShrink(f);if(!small){err.textContent='That picture is too big (max 5 MB).';continue}
+        files.push({file:small,url:URL.createObjectURL(small)})}
+      drawThumbs()}
+    function drawThumbs(){thumbs.replaceChildren(...files.map((f,i)=>h('div',{class:'bugthumb'},h('img',{src:f.url,alt:'Screenshot '+(i+1)}),h('button',{class:'bugx',title:'Remove','aria-label':'Remove picture '+(i+1),onclick:()=>{URL.revokeObjectURL(f.url);files.splice(i,1);drawThumbs()}},'✕'))),
+      files.length<BUG_MAX?h('button',{class:'bugadd',onclick:()=>pick.click()},h('b',{text:'＋'}),h('small',{text:'Add a picture'})):'')}
+    const drop=h('div',{class:'bugdrop',ondragover:e=>{e.preventDefault();drop.classList.add('over')},ondragleave:()=>drop.classList.remove('over'),ondrop:e=>{e.preventDefault();drop.classList.remove('over');add(e.dataTransfer.files)}},
+      thumbs,h('small',{class:'dim',text:'Drag pictures here, click ＋, or paste a screenshot with Ctrl+V (Windows: Win+Shift+S to take one · Mac: Cmd+Shift+4). Up to 3 pictures, 5 MB each.'}),pick);
+    const btn=h('button',{class:'btn',style:'font-weight:700',onclick:send},'🐞 Send bug report');
+    async function send(){err.textContent='';
+      if(!draft.title.trim()){err.textContent='Please give the bug a short title.';title.focus();return}
+      if(!draft.details.trim()){err.textContent='Please describe what happened.';details.focus();return}
+      btn.disabled=true;const up=[];
+      try{
+        for(let i=0;i<files.length;i++){btn.textContent=`Uploading picture ${i+1} of ${files.length}…`;
+          const url=await onlCall('mutation','bugs:uploadUrl',{});
+          const r=await fetch(url,{method:'POST',headers:{'Content-Type':files[i].file.type},body:files[i].file});
+          if(!r.ok)throw new Error('upload');up.push((await r.json()).storageId)}
+        btn.textContent='Sending…';
+        await onlCall('mutation','bugs:submit',{token:onlTok()||undefined,guestName:draft.guest.trim()||undefined,title:draft.title,details:draft.details,where:draft.where||undefined,images:up,
+          device:`${(navigator.userAgent.match(/(Edg|OPR|Firefox|Chrome|Safari)\/[\d]+/)||['browser'])[0]} · ${innerWidth}×${innerHeight}${matchMedia('(pointer:coarse)').matches?' · touch':''}`});
+        files.forEach(f=>URL.revokeObjectURL(f.url));files=[];draft={title:'',details:'',where:'',guest:draft.guest};sent=true;sfx('chime');thanks()}
+      catch(e){if(up.length)onlCall('mutation','bugs:discard',{images:up}).catch(()=>{});
+        err.textContent=e&&e.message==='upload'?'A picture could not be uploaded. Check your connection and try again.':onlErr(e);sfx('error')}
+      finally{btn.disabled=false;if(!sent)btn.textContent='🐞 Send bug report'}}
+    const who=me?h('div',{class:'bugwho'},avImg(me.avatar),h('span',null,'Sending as ',h('b',{text:me.name}),' on XPerience Online')):
+      h('label',null,'Your name ',guest,h('small',{class:'dim',text:' Sign in to XPerience Online (Chatzee → 🌐 Online) if you\'d like a reply.'}));
+    pane.replaceChildren(h('div',{class:'bugform'},
+      h('div',{class:'bughead'},icn('bug',40),h('div',null,h('b',{text:'Found a bug? Tell Nananub!'}),h('small',{text:'Something broken, weird or confusing? Your report goes straight to the creator. Screenshots help a lot. Thank you for helping make XPerience better 🦆'}))),
+      who,h('label',null,'Where is the bug?',where),h('label',null,'Short title',title),h('label',null,'What happened?',details),
+      h('div',null,h('div',{class:'buglbl',text:'Screenshots (optional)'}),drop),err,h('div',{class:'row',style:'justify-content:flex-end'},btn)));
+    drawThumbs();
+    pane.onpaste=e=>{const im=[...(e.clipboardData||{}).items||[]].filter(i=>i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean);if(im.length){e.preventDefault();add(im)}};
+  }
+  function thanks(){pane.replaceChildren(h('div',{class:'bugdone'},icn('bug',56),h('h2',{text:'Thank you! 💌'}),h('p',{text:'Your bug report was sent to Nananub. They will take a look and try to fix it as soon as they can.'}),
+    h('div',{class:'row',style:'justify-content:center'},h('button',{class:'btn',onclick:report},'Report another bug'),h('button',{class:'btn',onclick:()=>win.close()},'Close'))))}
+
+  function inbox(){
+    let filter='open',rows=null,err='';
+    const body=h('div',{class:'buglist'});
+    const bar=h('div',{class:'row bugbar'});
+    const draw=()=>{
+      bar.replaceChildren(...[['open','Open'],['new','New'],['fixed','Fixed'],['all','All']].map(([k,t])=>h('button',{class:'btn sm'+(filter===k?' on':''),onclick:()=>{filter=k;draw()}},t+(rows?` (${rows.filter(b=>k==='all'||(k==='open'?b.status!=='fixed':b.status===k)).length})`:''))));
+      if(err){body.replaceChildren(h('div',{class:'onlwait',text:'⚠ '+err}));return}
+      if(!rows){body.replaceChildren(h('div',{class:'onlwait',text:'Loading bug reports…'}));return}
+      const list=rows.filter(b=>filter==='all'||(filter==='open'?b.status!=='fixed':b.status===filter));
+      if(!list.length){body.replaceChildren(h('div',{class:'onlwait',text:filter==='open'?'No open bugs. Everything is working! 🎉':'Nothing here.'}));return}
+      body.replaceChildren(...list.map(b=>{
+        const set=st=>onlCall('mutation','bugs:setStatus',{token:onlTok(),id:b.id,status:st}).catch(e=>dlg.alert(onlErr(e),{icon:'warn'}));
+        return h('div',{class:'bugcard '+b.status},
+          h('div',{class:'bugtop'},h('span',{class:'bugst '+b.status,text:b.status==='new'?'NEW':b.status==='seen'?'Seen':'Fixed ✓'}),h('b',{text:b.title})),
+          h('div',{class:'dim bugmeta',text:`${b.byName}${b.signedIn?' (online account)':' (guest)'} · ${b.where||'not sure where'} · ${onlAgo(b.createdAt)}`}),
+          h('div',{class:'bugtext',text:b.details}),
+          b.images.length?h('div',{class:'bugimgs'},b.images.map((u,i)=>h('a',{href:u,target:'_blank',rel:'noopener',title:'Open full size'},h('img',{src:u,alt:'Screenshot '+(i+1),loading:'lazy'})))):'',
+          b.device?h('div',{class:'dim bugmeta',text:'💻 '+b.device}):'',
+          h('div',{class:'row'},
+            b.status==='new'?h('button',{class:'btn sm',onclick:()=>set('seen')},'👀 Mark seen'):'',
+            b.status!=='fixed'?h('button',{class:'btn sm',onclick:()=>set('fixed')},'✅ Mark fixed'):h('button',{class:'btn sm',onclick:()=>set('seen')},'↩ Reopen'),
+            h('button',{class:'btn sm',onclick:async()=>{if(await dlg.confirm(`Delete the bug report "${b.title}" and its pictures? This cannot be undone.`,{title:'Delete report',icon:'warn',ok:'Delete',cancel:'Cancel'}))onlCall('mutation','bugs:remove',{token:onlTok(),id:b.id}).catch(e=>dlg.alert(onlErr(e),{icon:'warn'}))}},'🗑 Delete')))}))};
+    pane.replaceChildren(h('div',{class:'buginbox'},bar,body));draw();
+    stopList=onlSub('bugs:list',{token:onlTok()},(r,e)=>{if(e){err=onlErr(e);rows=null}else{err='';rows=r||[]}draw()},win)}
+  win.onClose(()=>{files.forEach(f=>URL.revokeObjectURL(f.url));if(stopList)stopList()});
+  drawTabs();if(tab==='inbox'&&!(me&&me.admin))pane.replaceChildren(h('div',{class:'onlwait',text:'Checking…'}));else report();
+  if(tab==='inbox'&&!onlTok())report();
+}};
+addCSS(`.bugwin{display:flex;flex-direction:column;height:100%}.bugpane{flex:1;min-height:0;overflow:auto;padding:12px}
+.bugform{display:flex;flex-direction:column;gap:9px}.bugform label{display:flex;flex-direction:column;gap:3px;font-weight:600}.bugform label small{font-weight:400}
+.bugin{font:inherit;padding:5px 7px;border:1px solid #7f9db9;border-radius:3px;background:#fff;color:#111;resize:vertical}.bugin:focus{outline:2px solid #3a7bd5;outline-offset:0}
+.bughead{display:flex;gap:10px;align-items:center;background:#fff4f2;border:1px solid #f3b8ad;border-radius:6px;padding:8px 10px}.bughead div{display:flex;flex-direction:column;gap:2px}
+.bugwho{display:flex;align-items:center;gap:8px}.bugwho img,.bugwho svg{width:28px;height:28px}
+.buglbl{font-weight:600;margin-bottom:3px}.bugdrop{border:2px dashed #9cb3d4;border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px;background:#f7faff}.bugdrop.over{background:#e3efff;border-color:#3a7bd5}
+.bugthumbs{display:flex;gap:8px;flex-wrap:wrap}.bugthumb{position:relative;width:96px;height:72px;border:1px solid #9cb3d4;border-radius:4px;overflow:hidden;background:#fff}.bugthumb img{width:100%;height:100%;object-fit:cover}
+.bugx{position:absolute;top:2px;right:2px;width:20px;height:20px;border-radius:50%;border:1px solid #fff;background:#d23;color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0}
+.bugadd{width:96px;height:72px;border:1px dashed #7f9db9;border-radius:4px;background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#1f66d8}.bugadd b{font-size:22px;line-height:1}
+.bugdone{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:30px 10px}
+.buginbox{display:flex;flex-direction:column;gap:8px}.bugbar{flex-wrap:wrap;gap:4px}.bugbar .btn.on{font-weight:700;outline:2px solid #3a7bd5}
+.buglist{display:flex;flex-direction:column;gap:8px}.bugcard{border:1px solid #c9d6e8;border-left:4px solid #ef4b34;border-radius:5px;padding:8px 10px;background:#fff;display:flex;flex-direction:column;gap:5px}
+.bugcard.seen{border-left-color:#f0a020}.bugcard.fixed{border-left-color:#2fa84f;opacity:.8}.bugtop{display:flex;gap:6px;align-items:center}
+.bugst{font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;background:#ef4b34;color:#fff;white-space:nowrap}.bugst.seen{background:#f0a020}.bugst.fixed{background:#2fa84f}
+.bugmeta{font-size:11px}.bugtext{white-space:pre-wrap;overflow-wrap:anywhere}.bugimgs{display:flex;gap:6px;flex-wrap:wrap}.bugimgs img{width:120px;height:90px;object-fit:cover;border:1px solid #9cb3d4;border-radius:4px}`);
+addCSS(`
+.onl{display:flex;flex-direction:column;flex:1;min-height:0;overflow:auto}
+.onlgate{display:flex;flex-direction:column;gap:8px;padding:12px}.onlgate label{display:flex;flex-direction:column;gap:2px;font-size:12px}.onlhead{display:flex;gap:8px;align-items:center}.onlhead span{font-size:26px}.onlhead small{display:block;opacity:.75}
+.onlavs{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}.onlav{padding:1px;border:2px solid transparent;border-radius:4px;background:none;cursor:pointer;line-height:0}.onlav img,.onlav canvas{width:30px;height:30px}.onlav.on{border-color:#1f66d8}
+.onlerr{color:#c0221a;font-size:12px;font-weight:700;min-height:0}.onlerr:empty{display:none}.onlwait{padding:20px;text-align:center;opacity:.8}
+.onlsafe{font-size:11.5px;background:#fff7d6;border:1px solid #e8cf7a;color:#5a4400;padding:6px 8px;border-radius:4px}
+.onlres{display:flex;flex-direction:column}.onlres:empty{display:none}.onldot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff3b6b;vertical-align:middle}
+.forum{display:flex;height:100%;min-height:0;background:#eef3fb;color:#12324a}
+.fside{width:190px;flex:none;display:flex;flex-direction:column;gap:4px;padding:10px;background:linear-gradient(#2a5fc8,#173f8f);color:#fff;overflow:auto}
+.flogo{display:flex;align-items:baseline;gap:6px;margin-bottom:8px}.flogo span{background:#ffd23f;color:#173f8f;font:900 18px var(--ui);padding:0 6px;border-radius:4px}.flogo b{font:800 20px var(--ui)}
+.fboard{text-align:left;background:none;border:0;color:#dfe9ff;padding:6px 8px;border-radius:4px;cursor:pointer;font:inherit}.fboard:hover{background:rgba(255,255,255,.12)}.fboard.on{background:#fff;color:#173f8f;font-weight:700}
+.facct{margin-top:auto;padding-top:10px;border-top:1px solid rgba(255,255,255,.25);font-size:12px}.facct .row{align-items:center;gap:6px}.facct img,.facct canvas{width:28px;height:28px}.facct .dim{color:#cfe0ff;opacity:1}
+.fmain{flex:1;min-width:0;overflow:auto;padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+.fmain>.btn.sm{align-self:flex-start}.fhead{display:flex;align-items:center;gap:10px}.fhead h2{margin:0;flex:1;font-size:20px}
+.ftable{display:flex;flex-direction:column;border:1px solid #b9cbe8;border-radius:6px;overflow:hidden;background:#fff}
+.frow{display:grid;grid-template-columns:1fr 70px 110px;gap:8px;align-items:center;padding:8px 10px;border:0;border-top:1px solid #e3eaf5;background:#fff;text-align:left;font:inherit;color:inherit;cursor:pointer}.frow:hover{background:#f3f8ff}.fth{background:#dbe7fa;font-weight:700;cursor:default;font-size:12px}.fth:hover{background:#dbe7fa}
+.ftopic{display:flex;gap:8px;align-items:center;min-width:0}.ftopic img,.ftopic canvas{width:32px;height:32px;flex:none}.ftopic b{display:block}.ftopic small{display:block;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ftopic>span{min-width:0}
+.fpost,.freply{background:#fff;border:1px solid #c9d8ef;border-radius:6px;padding:10px 12px}.fpost h2{margin:8px 0 6px}.freply{margin-left:22px}
+.fauthor{display:flex;gap:8px;align-items:center}.fauthor img,.fauthor canvas{width:32px;height:32px}.fauthor small{display:block;opacity:.65}.fbody{white-space:pre-wrap;word-break:break-word;margin:6px 0}
+.ftools{display:flex;gap:6px;flex-wrap:wrap}.freplybox{display:flex;flex-direction:column;gap:6px;margin-left:22px}
+.small .fside{width:120px}.small .frow{grid-template-columns:1fr 50px}.small .frow>span:last-child{display:none}
 `);
 
 /* ============ start ============ */

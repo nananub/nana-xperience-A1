@@ -1,7 +1,7 @@
 // Shared helpers for the online functions (not callable from the website on their own).
 import { ConvexError } from "convex/values";
 
-export const LIMITS = { name: [3, 20], password: 6, title: 120, post: 3000, reply: 2000, message: 1000, bio: 200, reason: 300 };
+export const LIMITS = { name: [3, 20], password: 6, title: 120, post: 3000, reply: 2000, message: 1000, bio: 200, reason: 300, caption: 500, comment: 500, mood: 40, song: 80, interests: 160 };
 export const BOARDS = ["general", "music", "art", "games", "help"];
 
 export function fail(msg) { throw new ConvexError(msg); }
@@ -57,5 +57,52 @@ export async function blockedSet(ctx, me) {
 
 export function publicUser(u) {
   if (!u) return { id: null, name: "[deleted]", avatar: 0, bio: "" };
-  return { id: u._id, name: u.name, avatar: u.avatar, bio: u.bio, createdAt: u.createdAt };
+  return { id: u._id, name: u.name, avatar: u.avatar, photo: u.photoUrl || null, mood: u.mood || "", bio: u.bio, createdAt: u.createdAt };
+}
+
+// ---- friends ----
+export const pairKey = (x, y) => (x < y ? `${x}|${y}` : `${y}|${x}`);
+
+// "none" | "sent" (I asked them) | "received" (they asked me) | "friends"
+// People who already had a chat before friend requests existed count as friends.
+export async function friendState(ctx, meId, otherId) {
+  if (!meId || !otherId || meId === otherId) return "none";
+  const key = pairKey(meId, otherId);
+  const f = await ctx.db.query("friends").withIndex("by_key", (q) => q.eq("key", key)).unique();
+  if (f) return f.status === "friends" ? "friends" : f.from === meId ? "sent" : "received";
+  const c = await ctx.db.query("convos").withIndex("by_key", (q) => q.eq("key", key)).unique();
+  return c && !c.unfriended ? "friends" : "none";
+}
+
+// remove a friendship or request (both directions); old chats stop counting as friends too
+export async function unfriend(ctx, x, y) {
+  const key = pairKey(x, y);
+  const row = await ctx.db.query("friends").withIndex("by_key", (q) => q.eq("key", key)).unique();
+  if (row) await ctx.db.delete(row._id);
+  const c = await ctx.db.query("convos").withIndex("by_key", (q) => q.eq("key", key)).unique();
+  if (c && !c.unfriended) await ctx.db.patch(c._id, { unfriended: true });
+}
+
+// ---- pictures (stored in Convex file storage) ----
+const MAX_IMG = 5 * 1024 * 1024;
+// check that each uploaded file is a picture, is not too big, and was not already used somewhere else
+export async function claimImages(ctx, me, ids, max) {
+  ids = ids || [];
+  if (ids.length > max) fail(`You can add up to ${max} picture${max === 1 ? "" : "s"}.`);
+  if (new Set(ids).size !== ids.length) fail("The same picture was added twice.");
+  const out = [];
+  for (const id of ids) {
+    const f = await ctx.db.system.get("_storage", id);
+    if (!f) fail("A picture did not upload properly. Please add it again.");
+    if (!/^image\/(png|jpeg|gif|webp)$/.test(f.contentType || "")) fail("Only pictures (PNG, JPG, GIF or WebP) can be added.");
+    if (f.size > MAX_IMG) fail("That picture is too big (max 5 MB).");
+    const used = await ctx.db.query("uploads").withIndex("by_storage", (q) => q.eq("storageId", id)).first();
+    if (used) fail("That picture was already used. Please add it again.");
+    await ctx.db.insert("uploads", { storageId: id, by: me._id, createdAt: Date.now() });
+    out.push({ id, url: await ctx.storage.getUrl(id) });
+  }
+  return out;
+}
+export async function dropImages(ctx, ids) {
+  for (const id of ids || []) if (await ctx.db.system.get("_storage", id)) await ctx.storage.delete(id);
 }

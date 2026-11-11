@@ -1,7 +1,7 @@
 // Accounts, profiles, finding people, blocking and reporting.
 import { query, mutation, internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { fail, cleanText, currentUser, requireUser, isAdmin, publicUser, LIMITS } from "./lib";
+import { fail, cleanText, currentUser, requireUser, isAdmin, publicUser, LIMITS, friendState, unfriend } from "./lib";
 
 // ---- used only by accounts.js (not reachable from the website) ----
 export const create = internalMutation({
@@ -64,7 +64,9 @@ export const search = query({
     const p = q.trim().toLowerCase();
     if (p.length < 1) return [];
     const rows = await ctx.db.query("users").withIndex("by_name", (x) => x.gte("nameLower", p).lt("nameLower", p + "￿")).take(15);
-    return rows.filter((u) => u._id !== me._id && !u.banned).map(publicUser);
+    const out = [];
+    for (const u of rows) if (u._id !== me._id && !u.banned) out.push({ ...publicUser(u), friend: await friendState(ctx, me._id, u._id) });
+    return out;
   },
 });
 
@@ -84,6 +86,7 @@ export const block = mutation({
     if (userId === me._id) fail("You can't block yourself.");
     const has = await ctx.db.query("blocks").withIndex("by_pair", (q) => q.eq("by", me._id).eq("who", userId)).first();
     if (!has) await ctx.db.insert("blocks", { by: me._id, who: userId });
+    await unfriend(ctx, me._id, userId);
   },
 });
 export const unblock = mutation({
@@ -105,7 +108,7 @@ export const myBlocks = query({
 });
 
 export const report = mutation({
-  args: { token: v.string(), kind: v.union(v.literal("post"), v.literal("reply"), v.literal("user"), v.literal("message")), targetId: v.string(), reason: v.string() },
+  args: { token: v.string(), kind: v.union(v.literal("post"), v.literal("reply"), v.literal("user"), v.literal("message"), v.literal("photo"), v.literal("comment")), targetId: v.string(), reason: v.string() },
   handler: async (ctx, { token, kind, targetId, reason }) => {
     const me = await requireUser(ctx, token);
     await ctx.db.insert("reports", { by: me._id, kind, targetId, reason: cleanText(reason, LIMITS.reason, "reason"), createdAt: Date.now() });

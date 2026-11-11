@@ -1,9 +1,7 @@
 // Private 1-to-1 messages between online users (Chatzee "Online" tab).
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { fail, cleanText, currentUser, requireUser, brake, blockedEitherWay, publicUser, LIMITS } from "./lib";
-
-const pairKey = (x, y) => (x < y ? `${x}|${y}` : `${y}|${x}`);
+import { fail, cleanText, currentUser, requireUser, brake, blockedEitherWay, publicUser, LIMITS, pairKey, friendState } from "./lib";
 
 export const myConvos = query({
   args: { token: v.string() },
@@ -34,7 +32,8 @@ export const messages = query({
     const other = await ctx.db.get(userId);
     const blocked = await blockedEitherWay(ctx, me._id, userId);
     const iBlocked = !!(await ctx.db.query("blocks").withIndex("by_pair", (q) => q.eq("by", me._id).eq("who", userId)).first());
-    const base = { other: publicUser(other), blocked, iBlocked, theyAcceptDMs: !!other && other.dmsFrom === "everyone" };
+    const friend = await friendState(ctx, me._id, userId);
+    const base = { other: publicUser(other), blocked, iBlocked, friend, theyAcceptRequests: !!other && other.dmsFrom !== "nobody" };
     if (!c) return { ...base, convoId: null, list: [] };
     const rows = await ctx.db.query("messages").withIndex("by_convo", (q) => q.eq("convoId", c._id)).order("desc").take(150);
     return { ...base, convoId: c._id, list: rows.reverse().map((m) => ({ id: m._id, mine: m.from === me._id, body: m.body, at: m.createdAt })) };
@@ -49,10 +48,10 @@ export const send = mutation({
     const other = await ctx.db.get(to);
     if (!other || other.banned) fail("That person isn't on XPerience Online any more.");
     if (await blockedEitherWay(ctx, me._id, to)) fail("You can't message this person.");
+    if ((await friendState(ctx, me._id, to)) !== "friends") fail(`You and ${other.name} need to be friends before you can chat. Send a friend request first!`);
     const text = cleanText(body, LIMITS.message, "message");
     const key = pairKey(me._id, to);
     let c = await ctx.db.query("convos").withIndex("by_key", (q) => q.eq("key", key)).unique();
-    if (!c && other.dmsFrom === "nobody") fail(`${other.name} isn't accepting new messages right now.`);
     await brake(ctx, me);
     const now = Date.now();
     if (!c) {

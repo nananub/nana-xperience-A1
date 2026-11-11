@@ -11,8 +11,11 @@
 import type * as accounts from "../accounts.js";
 import type * as bugs from "../bugs.js";
 import type * as dm from "../dm.js";
+import type * as files from "../files.js";
 import type * as forum from "../forum.js";
+import type * as friends from "../friends.js";
 import type * as lib from "../lib.js";
+import type * as profiles from "../profiles.js";
 import type * as users from "../users.js";
 
 import type {
@@ -25,8 +28,11 @@ declare const fullApi: ApiFromModules<{
   accounts: typeof accounts;
   bugs: typeof bugs;
   dm: typeof dm;
+  files: typeof files;
   forum: typeof forum;
+  friends: typeof friends;
   lib: typeof lib;
+  profiles: typeof profiles;
   users: typeof users;
 }>;
 

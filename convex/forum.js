@@ -1,7 +1,7 @@
 // The public message board.
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { fail, cleanText, currentUser, requireUser, isAdmin, brake, blockedSet, publicUser, LIMITS, BOARDS } from "./lib";
+import { fail, cleanText, currentUser, requireUser, isAdmin, brake, blockedSet, publicUser, LIMITS, BOARDS, claimImages, dropImages } from "./lib";
 
 export const listPosts = query({
   args: { token: v.optional(v.string()), board: v.optional(v.string()) },
@@ -16,7 +16,7 @@ export const listPosts = query({
       if (p.hidden || hide.has(p.authorId)) continue;
       const a = await ctx.db.get(p.authorId);
       if (!a || a.banned) continue;
-      out.push({ id: p._id, board: p.board, title: p.title, preview: p.body.slice(0, 140), createdAt: p.createdAt, lastAt: p.lastAt, replyCount: p.replyCount, author: publicUser(a), mine: !!me && p.authorId === me._id });
+      out.push({ id: p._id, board: p.board, title: p.title, preview: p.body.slice(0, 140), createdAt: p.createdAt, lastAt: p.lastAt, replyCount: p.replyCount, author: publicUser(a), mine: !!me && p.authorId === me._id, thumb: p.images && p.images.length ? p.images[0].url : null, pics: (p.images || []).length });
     }
     return out;
   },
@@ -36,35 +36,38 @@ export const getPost = query({
       if (r.hidden || hide.has(r.authorId)) continue;
       const a = await ctx.db.get(r.authorId);
       if (!a || a.banned) continue;
-      replies.push({ id: r._id, body: r.body, createdAt: r.createdAt, author: publicUser(a), canDelete: !!me && (r.authorId === me._id || admin) });
+      replies.push({ id: r._id, body: r.body, images: (r.images || []).map((i) => i.url), createdAt: r.createdAt, author: publicUser(a), canDelete: !!me && (r.authorId === me._id || admin) });
     }
     const author = await ctx.db.get(p.authorId);
-    return { id: p._id, board: p.board, title: p.title, body: p.body, createdAt: p.createdAt, author: publicUser(author), canDelete: !!me && (p.authorId === me._id || admin), replies, admin };
+    return { id: p._id, board: p.board, title: p.title, body: p.body, images: (p.images || []).map((i) => i.url), createdAt: p.createdAt, author: publicUser(author), canDelete: !!me && (p.authorId === me._id || admin), replies, admin };
   },
 });
 
 export const createPost = mutation({
-  args: { token: v.string(), board: v.string(), title: v.string(), body: v.string() },
-  handler: async (ctx, { token, board, title, body }) => {
+  args: { token: v.string(), board: v.string(), title: v.string(), body: v.string(), images: v.optional(v.array(v.id("_storage"))) },
+  handler: async (ctx, { token, board, title, body, images }) => {
     const me = await requireUser(ctx, token);
     if (!BOARDS.includes(board)) fail("Please pick a board.");
-    const t = cleanText(title, LIMITS.title, "title"), b = cleanText(body, LIMITS.post, "post");
+    const hasPics = images && images.length;
+    const t = cleanText(title, LIMITS.title, "title"), b = hasPics && !String(body || "").trim() ? "" : cleanText(body, LIMITS.post, "post");
     await brake(ctx, me);
+    const pics = await claimImages(ctx, me, images, 4);
     const now = Date.now();
-    return ctx.db.insert("posts", { authorId: me._id, board, title: t, body: b, createdAt: now, lastAt: now, replyCount: 0 });
+    return ctx.db.insert("posts", { authorId: me._id, board, title: t, body: b, createdAt: now, lastAt: now, replyCount: 0, images: pics });
   },
 });
 
 export const reply = mutation({
-  args: { token: v.string(), postId: v.id("posts"), body: v.string() },
-  handler: async (ctx, { token, postId, body }) => {
+  args: { token: v.string(), postId: v.id("posts"), body: v.string(), images: v.optional(v.array(v.id("_storage"))) },
+  handler: async (ctx, { token, postId, body, images }) => {
     const me = await requireUser(ctx, token);
     const p = await ctx.db.get(postId);
     if (!p || p.hidden) fail("That post is gone.");
-    const b = cleanText(body, LIMITS.reply, "reply");
+    const b = images && images.length && !String(body || "").trim() ? "" : cleanText(body, LIMITS.reply, "reply");
     await brake(ctx, me);
+    const pics = await claimImages(ctx, me, images, 2);
     const now = Date.now();
-    await ctx.db.insert("replies", { postId, authorId: me._id, body: b, createdAt: now });
+    await ctx.db.insert("replies", { postId, authorId: me._id, body: b, createdAt: now, images: pics });
     await ctx.db.patch(postId, { lastAt: now, replyCount: p.replyCount + 1 });
   },
 });
@@ -78,7 +81,8 @@ export const remove = mutation({
     const row = nid && (await ctx.db.get(nid));
     if (!row) fail("It's already gone.");
     if (row.authorId !== me._id && !isAdmin(me)) fail("You can only delete your own posts.");
-    await ctx.db.patch(row._id, { hidden: true });
+    await ctx.db.patch(row._id, { hidden: true, images: [] });
+    await dropImages(ctx, (row.images || []).map((i) => i.id));
     if (kind === "reply") { const p = await ctx.db.get(row.postId); if (p) await ctx.db.patch(p._id, { replyCount: Math.max(0, p.replyCount - 1) }); }
   },
 });

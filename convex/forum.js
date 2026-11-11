@@ -1,0 +1,84 @@
+// The public message board.
+import { query, mutation } from "./_generated/server";
+import { v } from "convex/values";
+import { fail, cleanText, currentUser, requireUser, isAdmin, brake, blockedSet, publicUser, LIMITS, BOARDS } from "./lib";
+
+export const listPosts = query({
+  args: { token: v.optional(v.string()), board: v.optional(v.string()) },
+  handler: async (ctx, { token, board }) => {
+    const me = await currentUser(ctx, token);
+    const hide = await blockedSet(ctx, me);
+    const rows = board && BOARDS.includes(board)
+      ? await ctx.db.query("posts").withIndex("by_board_last", (q) => q.eq("board", board)).order("desc").take(60)
+      : await ctx.db.query("posts").withIndex("by_last").order("desc").take(60);
+    const out = [];
+    for (const p of rows) {
+      if (p.hidden || hide.has(p.authorId)) continue;
+      const a = await ctx.db.get(p.authorId);
+      if (!a || a.banned) continue;
+      out.push({ id: p._id, board: p.board, title: p.title, preview: p.body.slice(0, 140), createdAt: p.createdAt, lastAt: p.lastAt, replyCount: p.replyCount, author: publicUser(a), mine: !!me && p.authorId === me._id });
+    }
+    return out;
+  },
+});
+
+export const getPost = query({
+  args: { token: v.optional(v.string()), postId: v.id("posts") },
+  handler: async (ctx, { token, postId }) => {
+    const me = await currentUser(ctx, token);
+    const p = await ctx.db.get(postId);
+    if (!p || p.hidden) return null;
+    const hide = await blockedSet(ctx, me);
+    const admin = isAdmin(me);
+    const reps = await ctx.db.query("replies").withIndex("by_post", (q) => q.eq("postId", postId)).take(300);
+    const replies = [];
+    for (const r of reps) {
+      if (r.hidden || hide.has(r.authorId)) continue;
+      const a = await ctx.db.get(r.authorId);
+      if (!a || a.banned) continue;
+      replies.push({ id: r._id, body: r.body, createdAt: r.createdAt, author: publicUser(a), canDelete: !!me && (r.authorId === me._id || admin) });
+    }
+    const author = await ctx.db.get(p.authorId);
+    return { id: p._id, board: p.board, title: p.title, body: p.body, createdAt: p.createdAt, author: publicUser(author), canDelete: !!me && (p.authorId === me._id || admin), replies, admin };
+  },
+});
+
+export const createPost = mutation({
+  args: { token: v.string(), board: v.string(), title: v.string(), body: v.string() },
+  handler: async (ctx, { token, board, title, body }) => {
+    const me = await requireUser(ctx, token);
+    if (!BOARDS.includes(board)) fail("Please pick a board.");
+    const t = cleanText(title, LIMITS.title, "title"), b = cleanText(body, LIMITS.post, "post");
+    await brake(ctx, me);
+    const now = Date.now();
+    return ctx.db.insert("posts", { authorId: me._id, board, title: t, body: b, createdAt: now, lastAt: now, replyCount: 0 });
+  },
+});
+
+export const reply = mutation({
+  args: { token: v.string(), postId: v.id("posts"), body: v.string() },
+  handler: async (ctx, { token, postId, body }) => {
+    const me = await requireUser(ctx, token);
+    const p = await ctx.db.get(postId);
+    if (!p || p.hidden) fail("That post is gone.");
+    const b = cleanText(body, LIMITS.reply, "reply");
+    await brake(ctx, me);
+    const now = Date.now();
+    await ctx.db.insert("replies", { postId, authorId: me._id, body: b, createdAt: now });
+    await ctx.db.patch(postId, { lastAt: now, replyCount: p.replyCount + 1 });
+  },
+});
+
+// remove your own post/reply (the admin can remove anyone's)
+export const remove = mutation({
+  args: { token: v.string(), kind: v.union(v.literal("post"), v.literal("reply")), id: v.string() },
+  handler: async (ctx, { token, kind, id }) => {
+    const me = await requireUser(ctx, token);
+    const nid = ctx.db.normalizeId(kind === "post" ? "posts" : "replies", id);
+    const row = nid && (await ctx.db.get(nid));
+    if (!row) fail("It's already gone.");
+    if (row.authorId !== me._id && !isAdmin(me)) fail("You can only delete your own posts.");
+    await ctx.db.patch(row._id, { hidden: true });
+    if (kind === "reply") { const p = await ctx.db.get(row.postId); if (p) await ctx.db.patch(p._id, { replyCount: Math.max(0, p.replyCount - 1) }); }
+  },
+});

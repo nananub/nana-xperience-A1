@@ -3,6 +3,13 @@
   "version": "1.0.0",
   "description": "XPerience.exe: a retro OS in the browser, with a small Node back end for AI chat",
   "main": "server.js",
-  "scripts": { "start": "node server.js" },
-  "engines": { "node": ">=18" }
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "convex": "^1.49.0"
+  }
 }

@@ -144,3 +144,12 @@ export const ban = mutation({
     for (const s of ss) await ctx.db.delete(s._id);
   },
 });
+
+// find someone by their exact username (used when you click an @tag)
+export const byName = query({
+  args: { name: v.string() },
+  handler: async (ctx, { name }) => {
+    const u = await ctx.db.query("users").withIndex("by_name", (q) => q.eq("nameLower", String(name).toLowerCase().trim())).unique();
+    return u && !u.banned ? { id: u._id, name: u.name } : null;
+  },
+});

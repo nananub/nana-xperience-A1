@@ -1,7 +1,7 @@
 // The public message board.
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { fail, cleanText, currentUser, requireUser, isAdmin, brake, blockedSet, publicUser, LIMITS, BOARDS, claimImages, dropImages } from "./lib";
+import { fail, cleanText, currentUser, requireUser, isAdmin, brake, blockedSet, publicUser, LIMITS, BOARDS, claimImages, dropImages, notify, notifyMentions, toggleCommentLike, likedByMe } from "./lib";
 
 export const listPosts = query({
   args: { token: v.optional(v.string()), board: v.optional(v.string()) },
@@ -36,7 +36,7 @@ export const getPost = query({
       if (r.hidden || hide.has(r.authorId)) continue;
       const a = await ctx.db.get(r.authorId);
       if (!a || a.banned) continue;
-      replies.push({ id: r._id, body: r.body, images: (r.images || []).map((i) => i.url), createdAt: r.createdAt, author: publicUser(a), canDelete: !!me && (r.authorId === me._id || admin) });
+      replies.push({ id: r._id, parentId: r.parentId || null, likes: r.likeCount || 0, liked: await likedByMe(ctx, me, r._id), body: r.body, images: (r.images || []).map((i) => i.url), createdAt: r.createdAt, author: publicUser(a), canDelete: !!me && (r.authorId === me._id || admin) });
     }
     const author = await ctx.db.get(p.authorId);
     return { id: p._id, board: p.board, title: p.title, body: p.body, images: (p.images || []).map((i) => i.url), createdAt: p.createdAt, author: publicUser(author), canDelete: !!me && (p.authorId === me._id || admin), replies, admin };
@@ -53,22 +53,35 @@ export const createPost = mutation({
     await brake(ctx, me);
     const pics = await claimImages(ctx, me, images, 4);
     const now = Date.now();
-    return ctx.db.insert("posts", { authorId: me._id, board, title: t, body: b, createdAt: now, lastAt: now, replyCount: 0, images: pics });
+    const id = await ctx.db.insert("posts", { authorId: me._id, board, title: t, body: b, createdAt: now, lastAt: now, replyCount: 0, images: pics });
+    await notifyMentions(ctx, me, t + " " + b, { type: "fpost", id });
+    return id;
   },
 });
 
 export const reply = mutation({
-  args: { token: v.string(), postId: v.id("posts"), body: v.string(), images: v.optional(v.array(v.id("_storage"))) },
-  handler: async (ctx, { token, postId, body, images }) => {
+  args: { token: v.string(), postId: v.id("posts"), body: v.string(), images: v.optional(v.array(v.id("_storage"))), parentId: v.optional(v.string()) },
+  handler: async (ctx, { token, postId, body, images, parentId }) => {
     const me = await requireUser(ctx, token);
     const p = await ctx.db.get(postId);
     if (!p || p.hidden) fail("That post is gone.");
     const b = images && images.length && !String(body || "").trim() ? "" : cleanText(body, LIMITS.reply, "reply");
     await brake(ctx, me);
+    let parent = null;
+    if (parentId) {
+      const pid = ctx.db.normalizeId("replies", parentId);
+      parent = pid && (await ctx.db.get(pid));
+      if (!parent || parent.hidden || parent.postId !== postId) fail("The reply you're answering was deleted.");
+    }
     const pics = await claimImages(ctx, me, images, 2);
     const now = Date.now();
-    await ctx.db.insert("replies", { postId, authorId: me._id, body: b, createdAt: now, images: pics });
+    const top = parent && parent.parentId ? parent.parentId : parent && parent._id;
+    await ctx.db.insert("replies", { postId, authorId: me._id, body: b, createdAt: now, images: pics, ...(top ? { parentId: top } : {}) });
     await ctx.db.patch(postId, { lastAt: now, replyCount: p.replyCount + 1 });
+    const target = { type: "fpost", id: postId }, done = [me._id];
+    if (await notify(ctx, p.authorId, me, "freply", b || "(picture)", target)) done.push(p.authorId);
+    if (parent && !done.includes(parent.authorId) && (await notify(ctx, parent.authorId, me, "reply", b || "(picture)", target))) done.push(parent.authorId);
+    await notifyMentions(ctx, me, b, target, done);
   },
 });
 
@@ -84,5 +97,19 @@ export const remove = mutation({
     await ctx.db.patch(row._id, { hidden: true, images: [] });
     await dropImages(ctx, (row.images || []).map((i) => i.id));
     if (kind === "reply") { const p = await ctx.db.get(row.postId); if (p) await ctx.db.patch(p._id, { replyCount: Math.max(0, p.replyCount - 1) }); }
+  },
+});
+
+// like / unlike a reply
+export const likeReply = mutation({
+  args: { token: v.string(), replyId: v.string() },
+  handler: async (ctx, { token, replyId }) => {
+    const me = await requireUser(ctx, token);
+    const id = ctx.db.normalizeId("replies", replyId);
+    const r = id && (await ctx.db.get(id));
+    if (!r || r.hidden) fail("That reply was deleted.");
+    const on = await toggleCommentLike(ctx, me, r);
+    if (on) await notify(ctx, r.authorId, me, "clike", r.body || "(picture)", { type: "fpost", id: r.postId });
+    return on;
   },
 });

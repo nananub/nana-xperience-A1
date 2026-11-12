@@ -3,22 +3,28 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import {
   fail, cleanText, currentUser, requireUser, isAdmin, brake, blockedEitherWay, blockedSet, publicUser,
-  LIMITS, friendState, claimImages, dropImages,
+  LIMITS, friendState, claimImages, dropImages, notify, notifyMentions, toggleCommentLike, likedByMe,
 } from "./lib";
+
+const VIS = ["public", "friends", "private"];
+const visOf = (p, author) => p.vis || ((author && author.postsFor) === "friends" ? "friends" : "public");
+
+// can this person see this one post? (private = only the author)
+async function canSeePost(ctx, viewer, p, author) {
+  if (!author || author.banned || !p || p.hidden) return false;
+  if (viewer && viewer._id === author._id) return true;
+  if (viewer && (await blockedEitherWay(ctx, viewer._id, author._id))) return false;
+  const vis = visOf(p, author);
+  if (vis === "private") return false;
+  if (vis === "public") return true;
+  return !!viewer && (await friendState(ctx, viewer._id, author._id)) === "friends";
+}
 
 const THEMES = ["sky", "bubblegum", "emo", "watermelon", "duck", "mint", "midnight", "sunset", "lavender", "forest"];
 const PATTERNS = ["none", "stars", "hearts", "checker", "dots", "stripes", "sparkle", "grid"];
 const FONTS = ["classic", "comic", "pixel", "typewriter", "gothic"];
 
 const short = (s, max) => String(s || "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max);
-
-async function canSeePosts(ctx, viewer, author) {
-  if (!author || author.banned) return false;
-  if (viewer && viewer._id === author._id) return true;
-  if (viewer && (await blockedEitherWay(ctx, viewer._id, author._id))) return false;
-  if ((author.postsFor || "everyone") === "everyone") return true;
-  return !!viewer && (await friendState(ctx, viewer._id, author._id)) === "friends";
-}
 
 async function friendCount(ctx, userId) {
   const a = await ctx.db.query("friends").withIndex("by_a", (q) => q.eq("a", userId)).collect();
@@ -36,6 +42,7 @@ async function postOut(ctx, p, viewer, author) {
   return {
     id: p._id, image: p.image.url, caption: p.caption, createdAt: p.createdAt, likes: p.likeCount, comments: p.commentCount, liked,
     author: publicUser(author), canDelete: !!viewer && (p.authorId === viewer._id || isAdmin(viewer)),
+    mine: !!viewer && p.authorId === viewer._id, vis: visOf(p, author),
   };
 }
 
@@ -51,9 +58,9 @@ export const get = query({
     const iBlocked = blocked && !!(await ctx.db.query("blocks").withIndex("by_pair", (q) => q.eq("by", viewer._id).eq("who", u._id)).first());
     const base = { ...publicUser(u), self, blocked, iBlocked, admin: isAdmin(viewer) };
     if (blocked) return base;
-    const visible = await canSeePosts(ctx, viewer, u);
     let postCount = 0;
-    if (visible) postCount = (await ctx.db.query("pposts").withIndex("by_author", (q) => q.eq("authorId", u._id)).collect()).filter((p) => !p.hidden).length;
+    for (const x of await ctx.db.query("pposts").withIndex("by_author", (q) => q.eq("authorId", u._id)).collect()) if (await canSeePost(ctx, viewer, x, u)) postCount++;
+    const visible = true;
     return {
       ...base,
       friend: self ? "self" : viewer ? await friendState(ctx, viewer._id, u._id) : "none",
@@ -112,10 +119,10 @@ export const posts = query({
   handler: async (ctx, { token, userId }) => {
     const viewer = await currentUser(ctx, token);
     const u = await ctx.db.get(userId);
-    if (!(await canSeePosts(ctx, viewer, u))) return [];
-    const rows = await ctx.db.query("pposts").withIndex("by_author", (q) => q.eq("authorId", userId)).order("desc").take(90);
+    if (!u || u.banned) return [];
+    const rows = await ctx.db.query("pposts").withIndex("by_author", (q) => q.eq("authorId", userId)).order("desc").take(120);
     const out = [];
-    for (const p of rows) if (!p.hidden) out.push(await postOut(ctx, p, viewer, u));
+    for (const p of rows) if (await canSeePost(ctx, viewer, p, u)) out.push(await postOut(ctx, p, viewer, u));
     return out;
   },
 });
@@ -138,8 +145,7 @@ export const feed = query({
       if (!friendOk.has(p.authorId)) friendOk.set(p.authorId, p.authorId === me._id || (await friendState(ctx, me._id, p.authorId)) === "friends");
       const isFriend = friendOk.get(p.authorId);
       if (scope === "friends" && !isFriend) continue;
-      if (!isFriend && (a.postsFor || "everyone") === "friends") continue;
-      if (await blockedEitherWay(ctx, me._id, p.authorId)) continue;
+      if (!(await canSeePost(ctx, me, p, a))) continue;
       out.push(await postOut(ctx, p, me, a));
     }
     return out;
@@ -154,7 +160,7 @@ export const getPost = query({
     const p = id && (await ctx.db.get(id));
     if (!p || p.hidden) return null;
     const author = await ctx.db.get(p.authorId);
-    if (!(await canSeePosts(ctx, viewer, author))) return null;
+    if (!(await canSeePost(ctx, viewer, p, author)) && !(isAdmin(viewer) && visOf(p, author) !== "private")) return null;
     const hide = await blockedSet(ctx, viewer);
     const admin = isAdmin(viewer);
     const rows = await ctx.db.query("pcomments").withIndex("by_post", (q) => q.eq("postId", p._id)).take(300);
@@ -163,28 +169,33 @@ export const getPost = query({
       if (c.hidden || hide.has(c.authorId)) continue;
       const a = await ctx.db.get(c.authorId);
       if (!a || a.banned) continue;
-      comments.push({ id: c._id, body: c.body, createdAt: c.createdAt, author: publicUser(a), canDelete: !!viewer && (c.authorId === viewer._id || p.authorId === viewer._id || admin) });
+      comments.push({ id: c._id, parentId: c.parentId || null, body: c.body, createdAt: c.createdAt, author: publicUser(a), likes: c.likeCount || 0, liked: await likedByMe(ctx, viewer, c._id),
+        canDelete: !!viewer && (c.authorId === viewer._id || p.authorId === viewer._id || admin) });
     }
     return { ...(await postOut(ctx, p, viewer, author)), commentList: comments, signedIn: !!viewer };
   },
 });
 
 export const createPost = mutation({
-  args: { token: v.string(), image: v.id("_storage"), caption: v.string() },
-  handler: async (ctx, { token, image, caption }) => {
+  args: { token: v.string(), image: v.id("_storage"), caption: v.string(), vis: v.optional(v.string()) },
+  handler: async (ctx, { token, image, caption, vis }) => {
     const me = await requireUser(ctx, token);
     const cap = String(caption || "").trim();
     if (cap.length > LIMITS.caption) fail(`Captions can be up to ${LIMITS.caption} characters.`);
     await brake(ctx, me);
     const [pic] = await claimImages(ctx, me, [image], 1);
-    return ctx.db.insert("pposts", { authorId: me._id, image: pic, caption: cap, createdAt: Date.now(), likeCount: 0, commentCount: 0 });
+    const v2 = VIS.includes(vis) ? vis : me.postsFor === "friends" ? "friends" : "public";
+    const id = await ctx.db.insert("pposts", { authorId: me._id, image: pic, caption: cap, createdAt: Date.now(), likeCount: 0, commentCount: 0, vis: v2 });
+    const post = await ctx.db.get(id);
+    await notifyMentions(ctx, me, cap, { type: "ppost", id }, [], (u) => canSeePost(ctx, u, post, me));
+    return id;
   },
 });
 
 async function viewablePost(ctx, me, postId) {
   const p = await ctx.db.get(postId);
   if (!p || p.hidden) fail("That post isn't there any more.");
-  if (!(await canSeePosts(ctx, me, await ctx.db.get(p.authorId)))) fail("You can't see this post.");
+  if (!(await canSeePost(ctx, me, p, await ctx.db.get(p.authorId)))) fail("You can't see this post.");
   return p;
 }
 
@@ -198,19 +209,36 @@ export const like = mutation({
     if (has) { await ctx.db.delete(has._id); await ctx.db.patch(postId, { likeCount: Math.max(0, p.likeCount - 1) }); return false; }
     await ctx.db.insert("plikes", { postId, userId: me._id });
     await ctx.db.patch(postId, { likeCount: p.likeCount + 1 });
+    await notify(ctx, p.authorId, me, "like", p.caption, { type: "ppost", id: postId });
     return true;
   },
 });
 
 export const comment = mutation({
-  args: { token: v.string(), postId: v.id("pposts"), body: v.string() },
-  handler: async (ctx, { token, postId, body }) => {
+  args: { token: v.string(), postId: v.id("pposts"), body: v.string(), parentId: v.optional(v.string()) },
+  handler: async (ctx, { token, postId, body, parentId }) => {
     const me = await requireUser(ctx, token);
     const p = await viewablePost(ctx, me, postId);
     const b = cleanText(body, LIMITS.comment, "comment");
+    let parent = null;
+    if (parentId) {
+      const pid = ctx.db.normalizeId("pcomments", parentId);
+      parent = pid && (await ctx.db.get(pid));
+      if (!parent || parent.hidden || parent.postId !== postId) fail("The comment you're replying to was deleted.");
+      if (parent.parentId) parent = (await ctx.db.get(parent.parentId)) || parent; // replies stay one level deep
+    }
     await brake(ctx, me);
-    await ctx.db.insert("pcomments", { postId, authorId: me._id, body: b, createdAt: Date.now() });
+    const target = { type: "ppost", id: postId };
+    await ctx.db.insert("pcomments", { postId, authorId: me._id, body: b, createdAt: Date.now(), ...(parent ? { parentId: parent._id } : {}) });
     await ctx.db.patch(postId, { commentCount: p.commentCount + 1 });
+    const done = [me._id];
+    if (await notify(ctx, p.authorId, me, "comment", b, target)) done.push(p.authorId);
+    if (parentId) {
+      const direct = await ctx.db.get(ctx.db.normalizeId("pcomments", parentId));
+      if (direct && !done.includes(direct.authorId) && (await notify(ctx, direct.authorId, me, "reply", b, target))) done.push(direct.authorId);
+    }
+    const author = await ctx.db.get(p.authorId);
+    await notifyMentions(ctx, me, b, target, done, (u) => canSeePost(ctx, u, p, author));
   },
 });
 
@@ -238,5 +266,34 @@ export const removeComment = mutation({
     if (c.authorId !== me._id && (!p || p.authorId !== me._id) && !isAdmin(me)) fail("You can't delete this comment.");
     await ctx.db.patch(c._id, { hidden: true });
     if (p) await ctx.db.patch(p._id, { commentCount: Math.max(0, p.commentCount - 1) });
+  },
+});
+
+// like / unlike a comment
+export const likeComment = mutation({
+  args: { token: v.string(), commentId: v.string() },
+  handler: async (ctx, { token, commentId }) => {
+    const me = await requireUser(ctx, token);
+    const id = ctx.db.normalizeId("pcomments", commentId);
+    const c = id && (await ctx.db.get(id));
+    if (!c || c.hidden) fail("That comment was deleted.");
+    await viewablePost(ctx, me, c.postId);
+    const on = await toggleCommentLike(ctx, me, c);
+    if (on) await notify(ctx, c.authorId, me, "clike", c.body, { type: "ppost", id: c.postId });
+    return on;
+  },
+});
+
+// change who can see one of my posts
+export const setVisibility = mutation({
+  args: { token: v.string(), postId: v.string(), vis: v.string() },
+  handler: async (ctx, { token, postId, vis }) => {
+    const me = await requireUser(ctx, token);
+    if (!VIS.includes(vis)) fail("Please pick who can see this post.");
+    const id = ctx.db.normalizeId("pposts", postId);
+    const p = id && (await ctx.db.get(id));
+    if (!p || p.hidden) fail("That post isn't there any more.");
+    if (p.authorId !== me._id) fail("You can only change your own posts.");
+    await ctx.db.patch(p._id, { vis });
   },
 });

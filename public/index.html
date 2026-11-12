@@ -2672,7 +2672,7 @@ APPS.chat={title:'Conversation',icon:'messenger',w:420,h:460,minW:300,minH:300,k
     if(M.status==='offline')return;
     typ.textContent=`${b.name} is typing…`;const t0=Date.now();personaReply(b,t,H).then(r=>setTimeout(()=>{typ.textContent='';if(!WM.wins.has(win.id))return;H.push({f:'them',t:r,ts:Date.now()});saveS();sfx('msg');draw()},Math.max(500,1000-(Date.now()-t0))))}
   ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
-  const emos=h('div',{class:'emos'},EMO.map(e=>h('button',{title:e.n+'  '+e.code,'aria-label':e.n,onclick:()=>{ta.value+=' '+e.code+' ';ta.focus()}},h('img',{class:'emo',src:emoURL(e),alt:e.code}))));
+  const emos=emoBar(ta);
   win.menubar({Conversation:[{label:'Clear history',onclick:async()=>{if(await dlg.confirm('Clear this conversation from this computer?',{icon:'warn',ok:'Clear',cancel:'Keep'})){H.length=0;saveS();draw()}}},'-',{label:'Close',onclick:()=>win.close()}]});
   win.body.append(h('div',{class:'chat'},chatHead(b),log,typ,h('div',{class:'inb'},emos,ta,h('button',{class:'btn',onclick:send},'Send'),h('button',{class:'btn',title:'Shake the window',onclick:()=>{win.el.classList.add('shake');sfx('nudge');setTimeout(()=>win.el.classList.remove('shake'),520);H.push({f:'me',t:'*nudge*',ts:Date.now()});saveS();draw()}},'Nudge'))));
   win.body.style.padding='0';draw();setTimeout(()=>ta.focus(),50);
@@ -4520,7 +4520,7 @@ const ABOUT={
     ['Front end','HTML, CSS and JavaScript in a single file (index.html): the desktop, windows, 18 arcade games, Pixel Studio, Media Player and every other app. No frameworks.'],
     ['Back end','A small Node.js server (server.js) with no extra packages. It serves the website and keeps every secret key on the server, never in the browser.'],
     ['AI characters','The Chatzee friends and Ask-O-Tron 2000 are powered by free AI models through OpenRouter. If one model is busy, the server automatically tries another; if none answer, the characters fall back to built-in replies.'],
-    ['Online database','XPerience Online (accounts, friend requests, decorated profiles, photo posts with likes and comments, private chats, the XP Boards forum and bug reports) runs on Convex, a real-time database, so new messages appear instantly. Pictures go into Convex file storage. Passwords are hashed and never stored as plain text.'],
+    ['Online database','XPerience Online (accounts, friend requests, decorated profiles, photo posts with Public / Friends / Only me audiences, likes, threaded comments, @tags and notifications, private and group chats, the XP Boards forum and bug reports) runs on Convex, a real-time database, so new messages appear instantly. Pictures go into Convex file storage. Passwords are hashed and never stored as plain text.'],
     ['Hosting','The website runs on Render and updates automatically whenever new code is pushed to GitHub.'],
     ['Your own things','Drawings, notes, diary pages, music, recordings and game scores are saved only in your own browser (localStorage and IndexedDB).']
   ],
@@ -4723,7 +4723,13 @@ function onlWatch(){
     if(!init){L.incoming.forEach(u=>{if(!inc.has(u.id))notify(`${u.name} sent you a friend request.`,{title:'Friend request (XPerience Online)',icon:'messenger',onclick:()=>WM.open('messenger',{tab:'online'})})});
       L.friends.forEach(u=>{if(out.has(u.id))notify(`${u.name} accepted your friend request! You can chat now.`,{title:'New friend (XPerience Online)',icon:'messenger',onclick:()=>WM.open('dm',{id:u.id,name:u.name})})})}
     inc=ni;out=new Set(L.outgoing.map(u=>u.id))});
-  ONL.watch=()=>{stopDm();stopBugs();stopFr()}}
+  let firstN=true,seenN=new Set();
+  const stopN=onlSub('notifs:unread',{token:onlTok()},L=>{if(!L)return;const init=firstN;firstN=false;
+    L.forEach(n=>{if(!init&&!seenN.has(n.id))notify(`${n.from.name} ${NVERB[n.kind]||''}${n.text?': “'+n.text.slice(0,60)+'”':''}`,{title:'XPerience Online '+(NICON[n.kind]||'🔔'),icon:'messenger',onclick:()=>onlOpenTarget(n.target)});seenN.add(n.id)})});
+  let firstG=true,gSeen={};
+  const stopG=onlSub('groups:mine',{token:onlTok()},L=>{if(!L)return;const init=firstG;firstG=false;
+    L.forEach(g=>{if(!init&&g.unread&&gSeen[g.id]!==g.lastAt&&![...WM.wins.values()].some(w=>w.key==='g:'+g.id&&!w.min)){notify(g.lastText,{title:'👥 '+g.name,icon:'messenger',onclick:()=>WM.open('gchat',{id:g.id})})}gSeen[g.id]=g.lastAt})});
+  ONL.watch=()=>{stopDm();stopBugs();stopFr();stopN();stopG()}}
 
 async function onlReport(kind,targetId,label){
   const r=await dlg.show({title:'Report',icon:'warn',msg:`Tell the admin what is wrong with ${label}. They will check it.`,input:{value:'',max:300,placeholder:'e.g. rude, spam, made me uncomfortable'},buttons:[{t:'Send report',v:true},{t:'Cancel',v:null}]});
@@ -4737,10 +4743,10 @@ APPS.dm={title:'Online chat',icon:'messenger',w:420,h:480,minW:300,minH:320,key:
     const log=h('div',{class:'log',role:'log','aria-live':'polite'}),ta=h('textarea',{class:'inp','aria-label':'Message',maxlength:1000,placeholder:'Type a message and press Enter'}),info=h('div',{class:'typ'});
     const head=h('div',{class:'chead'}),sendB=h('button',{class:'btn'},'Send');let last=null,readAt=0,lastCount=-1;
     async function send(){const t=ta.value.trim();if(!t)return;sendB.disabled=true;try{await onlCall('mutation','dm:send',{token:onlTok(),to:p.id,body:t});ta.value='';sfx('blipg')}catch(e){info.textContent='⚠ '+onlErr(e);sfx('error')}finally{sendB.disabled=false;ta.focus()}}
+    const emos=emoBar(ta);const mb=onlMention(ta);
     sendB.onclick=send;ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
-    const emos=h('div',{class:'emos'},EMO.map(e=>h('button',{title:e.n+'  '+e.code,'aria-label':e.n,onclick:()=>{ta.value+=' '+e.code+' ';ta.focus()}},h('img',{class:'emo',src:emoURL(e),alt:e.code}))));
     const fnote=h('div',{class:'dmnote',style:'display:none'});
-    host.replaceChildren(h('div',{class:'chat'},head,log,info,fnote,h('div',{class:'inb'},emos,ta,sendB)));
+    host.replaceChildren(h('div',{class:'chat'},head,log,info,fnote,h('div',{class:'inb'},emos,mb,ta,sendB)));
     onlSub('dm:messages',{token:onlTok(),userId:p.id},(d,e)=>{
       if(e){info.textContent='⚠ '+onlErr(e);return}if(!d)return;
       const o=d.other;win.setTitle(`${o.name} - XPerience Online`);
@@ -4748,7 +4754,7 @@ APPS.dm={title:'Online chat',icon:'messenger',w:420,h:480,minW:300,minH:320,key:
         h('button',{class:'btn sm',onclick:async()=>{try{if(d.iBlocked)await onlCall('mutation','users:unblock',{token:onlTok(),userId:o.id});else if(await dlg.confirm(`Block ${o.name}? You won't see each other's messages or posts.`,{icon:'warn',ok:'Block',cancel:'Cancel'}))await onlCall('mutation','users:block',{token:onlTok(),userId:o.id})}catch(err){dlg.alert(onlErr(err),{icon:'warn'})}}},d.iBlocked?'Unblock':'Block'),
         h('button',{class:'btn sm',onclick:()=>onlReport('user',o.id,o.name)},'Report'));
       const js=JSON.stringify(d.list);if(js!==last){const atBottom=log.scrollHeight-log.scrollTop-log.clientHeight<40||last===null;last=js;
-        log.replaceChildren(h('div',{class:'sys',text:'🔒 Private chat with a real person. '+ONL_SAFE}),...d.list.map(m=>h('div',{class:'m '+(m.mine?'me':'them')},h('small',{text:(m.mine?me.name:o.name)+' · '+fmtTime(m.at)}),h('div',{},...emoNodes(m.body)))));
+        log.replaceChildren(h('div',{class:'sys',text:'🔒 Private chat with a real person. '+ONL_SAFE}),...d.list.map(m=>h('div',{class:'m '+(m.mine?'me':'them')},h('small',{text:(m.mine?me.name:o.name)+' · '+fmtTime(m.at)}),h('div',{},...onlText(m.body)))));
         if(atBottom)log.scrollTop=log.scrollHeight;const lm=d.list[d.list.length-1];if(lastCount>=0&&d.list.length>lastCount&&lm&&!lm.mine)sfx('msg');lastCount=d.list.length}
       const notFriends=!d.blocked&&d.friend!=='friends';
       info.textContent=d.blocked?(d.iBlocked?`You blocked ${o.name}.`:`You can't message ${o.name}.`):'';
@@ -4795,23 +4801,29 @@ APPS.forum={title:'XP Boards',icon:'forum',w:820,h:600,minW:340,minH:380,single:
       const tools=(kind,id,author,can)=>h('div',{class:'ftools'},can?h('button',{class:'btn sm',onclick:del(kind,id)},'Delete'):null,me&&author.id!==me.id?h('button',{class:'btn sm',onclick:()=>onlReport(kind,id,kind==='post'?'this post':'this reply')},'Report'):null,author.id&&(!me||author.id!==me.id)?h('button',{class:'btn sm',onclick:()=>onlProfile(author.id)},'👤 '+author.name):null);
       const pics=(urls,who)=>urls&&urls.length?h('div',{class:'fpics'},urls.map((u,i)=>h('button',{title:'View full size',onclick:()=>onlShowPic(u,`${who}'s picture ${i+1}`)},h('img',{src:u,alt:`Picture ${i+1}`,loading:'lazy'})))):null;
       const old=main.querySelector('.freplybox');const rpick=old&&old._pick||onlPicker(2,{hint:'Add up to 2 pictures (optional)'});
-      const ta=h('textarea',{class:'inp',rows:3,maxlength:2000,'aria-label':'Your reply',placeholder:me?'Write a reply…':'Sign in to reply',onpaste:e=>rpick.paste(e)}),msg=h('div',{class:'onlerr'});
+      const ta=h('textarea',{class:'inp',rows:3,maxlength:2000,'aria-label':'Your reply',placeholder:me?'Write a reply… (type @ to tag someone)':'Sign in to reply',onpaste:e=>rpick.paste(e)}),msg=h('div',{class:'onlerr'});
+      const vw=view,rto=h('div',{class:'rto',hidden:!vw.replyTo});
+      const setReply=r=>{vw.replyTo=r;rto.hidden=!r;if(r){rto.replaceChildren(h('span',{style:'flex:1',text:`↩ Replying to ${r.author.name}`}),h('button',{title:'Cancel reply','aria-label':'Cancel reply',onclick:()=>setReply(null)},'✕'));if(!ta.value.includes('@'+r.author.name))ta.value=`@${r.author.name} `+ta.value;ta.focus();rto.scrollIntoView({block:'nearest'})}};
+      if(vw.replyTo)setTimeout(()=>setReply(vw.replyTo));
       const send=e=>{const btn=e.currentTarget;needMe(async()=>{const t=ta.value.trim();if(!t&&!rpick.count()){msg.textContent='Write a reply or add a picture first.';return}btn.disabled=true;msg.textContent='';
-        try{const images=await rpick.upload((i,n)=>btn.textContent=`Uploading ${i}/${n}…`);btn.textContent='Posting…';await onlCall('mutation','forum:reply',{token:onlTok(),postId:d.id,body:t,images});ta.value='';rpick.clear();sfx('blipg')}catch(err){msg.textContent=onlImgErr(err)}finally{btn.disabled=false;btn.textContent='Post reply'}})};
+        try{const images=await rpick.upload((i,n)=>btn.textContent=`Uploading ${i}/${n}…`);btn.textContent='Posting…';await onlCall('mutation','forum:reply',{token:onlTok(),postId:d.id,body:t,images,parentId:vw.replyTo?vw.replyTo.id:undefined});ta.value='';rpick.clear();setReply(null);sfx('blipg')}catch(err){msg.textContent=onlImgErr(err)}finally{btn.disabled=false;btn.textContent='Post reply'}})};
       const keep=main.querySelector('.freplybox textarea');const draft=keep?keep.value:'';
       main.replaceChildren(h('button',{class:'btn sm',onclick:()=>show({k:'list'})},'← All posts'),
         h('div',{class:'fpost'},h('div',{class:'fauthor'},h('button',{class:'chav',onclick:()=>onlProfile(d.author.id),title:'View profile'},onlAv(d.author)),h('div',null,h('b',{text:d.author.name}),h('small',{text:fmtDate(d.createdAt)+' '+fmtTime(d.createdAt)}))),
-          h('h2',{text:d.title}),d.body?h('div',{class:'fbody'},...emoNodes(d.body)):null,pics(d.images,d.author.name),tools('post',d.id,d.author,d.canDelete)),
+          h('h2',{text:d.title}),d.body?h('div',{class:'fbody'},...onlText(d.body)):null,pics(d.images,d.author.name),tools('post',d.id,d.author,d.canDelete)),
         h('div',{class:'grp',text:`${d.replies.length} repl${d.replies.length===1?'y':'ies'}`}),
-        ...d.replies.map(r=>h('div',{class:'freply'},h('div',{class:'fauthor'},h('button',{class:'chav',onclick:()=>onlProfile(r.author.id),title:'View profile'},onlAv(r.author)),h('div',null,h('b',{text:r.author.name}),h('small',{text:onlAgo(r.createdAt)}))),r.body?h('div',{class:'fbody'},...emoNodes(r.body)):null,pics(r.images,r.author.name),tools('reply',r.id,r.author,r.canDelete))),
-        (()=>{const b=h('div',{class:'freplybox'},ta,rpick.el,msg,h('button',{class:'btn',onclick:send},'Post reply'));b._pick=rpick;return b})());ta.value=draft},win)}
+        ...(()=>{const ids=new Set(d.replies.map(r=>r.id));const one=(r,sub)=>{const lk=h('button',{class:'btn sm flike'+(r.liked?' on':''),disabled:!me,title:r.liked?'Unlike':'Like',onclick:async e=>{const b=e.currentTarget,on=!b.classList.contains('on');b.classList.toggle('on',on);b.textContent=`♥ ${r.likes-(r.liked?1:0)+(on?1:0)}`;try{await onlCall('mutation','forum:likeReply',{token:onlTok(),replyId:r.id})}catch(er){dlg.alert(onlErr(er),{icon:'warn'})}}},`♥ ${r.likes}`);
+            const tl=tools('reply',r.id,r.author,r.canDelete);tl.prepend(lk,me?h('button',{class:'btn sm',onclick:()=>setReply(r)},'↩ Reply'):'');
+            return h('div',{class:'freply'+(sub?' sub':'')},h('div',{class:'fauthor'},h('button',{class:'chav',onclick:()=>onlProfile(r.author.id),title:'View profile'},onlAv(r.author)),h('div',null,h('b',{text:r.author.name}),h('small',{text:onlAgo(r.createdAt)}))),r.body?h('div',{class:'fbody'},...onlText(r.body)):null,pics(r.images,r.author.name),tl)};
+          return d.replies.filter(r=>!r.parentId||!ids.has(r.parentId)).flatMap(r=>[one(r,false),...d.replies.filter(x=>x.parentId===r.id).map(x=>one(x,true))])})(),
+        (()=>{const b=h('div',{class:'freplybox'},rto,onlMention(ta),ta,emoBar(ta),rpick.el,msg,h('button',{class:'btn',onclick:send},'Post reply'));b._pick=rpick;return b})());ta.value=draft},win)}
   function newPost(){const bs=h('select',{class:'sel','aria-label':'Board'},FBOARDS.slice(1).map(([k,t,ic])=>h('option',{value:k,selected:k===board,text:ic+' '+t}))),ti=h('input',{class:'inp',maxlength:120,placeholder:'Title','aria-label':'Title'}),bo=h('textarea',{class:'inp',rows:8,maxlength:3000,placeholder:'What do you want to say?','aria-label':'Post'}),msg=h('div',{class:'onlerr'});
-    const pk=onlPicker(4,{hint:'Add up to 4 pictures: click ＋, drag them here, or paste with Ctrl+V.'});bo.addEventListener('paste',e=>pk.paste(e));
+    const pk=onlPicker(4,{hint:'Add up to 4 pictures: click ＋, drag them here, or paste with Ctrl+V.'});bo.addEventListener('paste',e=>pk.paste(e));bo.placeholder='What do you want to say? (type @ to tag someone)';const bmb=onlMention(bo),beb=emoBar(bo);
     const go=async e=>{const btn=e.currentTarget;msg.textContent='';
       if(!ti.value.trim()){msg.textContent='Please give your post a title.';ti.focus();return}
       if(!bo.value.trim()&&!pk.count()){msg.textContent='Please write something or add a picture first.';bo.focus();return}
       btn.disabled=true;try{const images=await pk.upload((i,n)=>btn.textContent=`Uploading picture ${i}/${n}…`);btn.textContent='Posting…';const id=await onlCall('mutation','forum:createPost',{token:onlTok(),board:bs.value,title:ti.value,body:bo.value,images});sfx('save');board=bs.value;show({k:'post',id})}catch(err){msg.textContent=onlImgErr(err);btn.disabled=false;btn.textContent='Post it'}};
-    main.replaceChildren(h('div',{class:'fhead'},h('h2',{text:'✏ New post'})),h('div',{class:'col',style:'gap:8px;max-width:620px'},h('label',{class:'col'},'Board',bs),h('label',{class:'col'},'Title',ti),h('label',{class:'col'},'Message',bo),h('div',{class:'col'},h('b',{text:'Pictures (optional)'}),pk.el),msg,
+    main.replaceChildren(h('div',{class:'fhead'},h('h2',{text:'✏ New post'})),h('div',{class:'col',style:'gap:8px;max-width:620px'},h('label',{class:'col'},'Board',bs),h('label',{class:'col'},'Title',ti),h('label',{class:'col'},'Message',bmb,bo),beb,h('div',{class:'col'},h('b',{text:'Pictures (optional)'}),pk.el),msg,
       h('small',{class:'dim',text:'🛡 Everyone can read this. Never post personal details like your address, school or phone number.'}),h('div',{class:'row'},h('button',{class:'btn',style:'font-weight:700',onclick:go},'Post it'),h('button',{class:'btn',onclick:()=>show({k:'list'})},'Cancel'))));setTimeout(()=>ti.focus(),30)}
   function reports(){main.replaceChildren(h('div',{class:'onlwait',text:'Loading reports…'}));
     stop=onlSub('users:reports',{token:onlTok()},(L,e)=>{if(e||!L){if(e)main.replaceChildren(h('div',{class:'onlerr',text:onlErr(e)}));return}
@@ -4821,8 +4833,182 @@ APPS.forum={title:'XP Boards',icon:'forum',w:820,h:600,minW:340,minH:380,single:
           r.kind==='user'?h('button',{class:'btn sm',onclick:async()=>{if(await dlg.confirm('Ban this account? They will be signed out and hidden.',{icon:'warn',ok:'Ban',cancel:'Cancel'}))try{await onlCall('mutation','users:ban',{token:onlTok(),userId:r.targetId});await onlCall('mutation','users:closeReport',{token:onlTok(),reportId:r._id})}catch(err){dlg.alert(onlErr(err),{icon:'warn'})}}},'Ban account'):null,
           h('button',{class:'btn sm',onclick:()=>onlCall('mutation','users:closeReport',{token:onlTok(),reportId:r._id}).catch(()=>{})},'Dismiss')))):[h('div',{class:'emptymsg',style:'padding:30px',text:'No open reports. 🎉'})]))},win)}
   drawAcct();show(p.post?{k:'post',id:p.post}:{k:'list'});
+  win.onParams=q=>{if(q&&q.post)show({k:'post',id:q.post})};
 }};
 Object.assign(IC,{forum:`<rect x="3" y="4" width="20" height="14" rx="2.5" fill="url(#gB)" ${O}/><path d="M8 18l-2 5 6-5" fill="url(#gB)" ${O}/><rect x="11" y="11" width="18" height="12" rx="2.5" fill="url(#gY)" ${O}/><path d="M24 23l3 5-7-5" fill="url(#gY)" ${O}/><path d="M7 9h12M7 13h8" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/><path d="M15 15.5h10M15 19h7" stroke="#7a5a00" stroke-width="1.5" stroke-linecap="round"/>`});
+
+/* ============ emoticons, emoji and kaomoji ============ */
+/* more pixel emoticons: new faces + every avatar (unicorn, duck, fish…) */
+EMO.push(
+ {code:'^_^',n:'happy',r:face([[3,3,'k'],[4,2,'k'],[4,4,'k'],[3,6,'k'],[4,5,'k'],[4,7,'k'],[6,3,'k'],[7,4,'k'],[7,5,'k'],[6,6,'k']])},
+ {code:'XD',n:'laughing',r:face([[2,2,'k'],[2,4,'k'],[3,3,'k'],[4,2,'k'],[4,4,'k'],[2,5,'k'],[2,7,'k'],[3,6,'k'],[4,5,'k'],[4,7,'k'],[6,2,'k'],[6,3,'k'],[6,4,'k'],[6,5,'k'],[6,6,'k'],[6,7,'k'],[7,3,'r'],[7,4,'r'],[7,5,'r'],[7,6,'r']])},
+ {code:":'(",n:'crying',r:face([[3,3,'k'],[3,6,'k'],[4,3,'c'],[5,3,'c'],[6,3,'c'],[4,6,'c'],[5,6,'c'],[7,4,'k'],[7,5,'k']])},
+ {code:'(love)',n:'in love',r:face([[2,2,'r'],[2,4,'r'],[3,2,'r'],[3,3,'r'],[3,4,'r'],[4,3,'r'],[2,5,'r'],[2,7,'r'],[3,5,'r'],[3,6,'r'],[3,7,'r'],[4,6,'r'],[6,2,'k'],[7,3,'k'],[7,4,'k'],[7,5,'k'],[7,6,'k'],[6,7,'k']])},
+ {code:':*',n:'kiss',r:face([[3,3,'k'],[3,6,'k'],[5,2,'p'],[5,7,'p'],[6,4,'r'],[6,5,'r'],[7,4,'r'],[7,5,'r']])},
+ {code:':$',n:'blushing',r:face([[3,3,'k'],[3,6,'k'],[5,2,'p'],[5,3,'p'],[5,6,'p'],[5,7,'p'],[7,4,'k'],[7,5,'k']])},
+ {code:'(:3)',n:'cat face',r:face([[3,3,'k'],[3,6,'k'],[6,2,'k'],[7,3,'k'],[6,4,'k'],[6,5,'k'],[7,6,'k'],[6,7,'k']])},
+ {code:'>_<',n:'ouch',r:face([[2,2,'k'],[3,3,'k'],[4,2,'k'],[2,7,'k'],[3,6,'k'],[4,7,'k'],[7,3,'k'],[7,4,'k'],[7,5,'k'],[7,6,'k']])},
+ {code:'o_O',n:'confused',r:face([[3,3,'k'],[2,5,'k'],[2,6,'k'],[3,5,'k'],[3,6,'k'],[7,3,'k'],[7,4,'k'],[7,5,'k'],[7,6,'k']])},
+ {code:':|',n:'meh',r:face([[3,3,'k'],[3,6,'k'],[7,3,'k'],[7,4,'k'],[7,5,'k'],[7,6,'k']])},
+ {code:'(sick)',n:'sick',r:face([[3,3,'k'],[3,6,'k'],[6,3,'k'],[6,4,'k'],[6,5,'k'],[6,6,'k'],[7,4,'w'],[7,5,'w']],'l')},
+ ...[['(unicorn)',12],['(duck)',11],['(chick)',11],['(cat)',2],['(frog)',3],['(flower)',5],['(moon)',6],['(planet)',7],['(cherry)',8],['(robot)',9],['(shroom)',10],['(fish)',13],['(plant)',14],['(sunflower)',15],['(cloud)',16],['(anon)',17]]
+   .filter(([c],i,a)=>a.findIndex(x=>x[1]===a[i][1])===i).map(([code,i])=>({code,n:AVATARS[i].n.toLowerCase(),r:AVATARS[i].r})));
+const EMOJI={
+  'Faces':'😀 😁 😂 🤣 😊 😇 🙂 😉 😍 🥰 😘 😋 😛 😜 🤪 😎 🤓 🥳 😏 😒 😔 😢 😭 😤 😠 🤯 😳 🥺 😱 😴 🤤 😵 🤗 🤔 🤫 🙄 😬 😶 🫠 🥹 👻 💀 🤡 👽 🤖',
+  'Hearts':'❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💖 💗 💓 💞 💕 💘 💝 💔 ❣️ 💌 🫶',
+  'Animals':'🦄 🦆 🐥 🐣 🐱 🐶 🐰 🐹 🐻 🐼 🐨 🐸 🐵 🐧 🐦 🦉 🦋 🐝 🐞 🐢 🐍 🐙 🐠 🐟 🐳 🐬 🦈 🦊 🐺 🐮 🐷 🐴 🦖 🐉',
+  'Food':'🍉 🍓 🍒 🍑 🍍 🥭 🍌 🍇 🍎 🍋 🥑 🍕 🍔 🍟 🌭 🍿 🍩 🍪 🎂 🍰 🧁 🍦 🍭 🍬 🍫 🧃 🧋 ☕ 🍵 🍜 🍣 🍙',
+  'Nature':'🌸 🌷 🌹 🌻 🌼 🌺 🍀 🌿 🌱 🌵 🍄 🌈 ☀️ 🌙 ⭐ 🌟 ✨ ☁️ ⛈️ ❄️ 🌊 🔥 ⚡ 🌍',
+  'Fun':'🎮 👾 🕹️ 🎧 🎸 🎹 🎤 💿 📼 📷 📱 💻 💾 📝 🎨 ✏️ 📚 🎀 🎁 🎈 🎉 🎊 🏆 ⚽ 🛹 🚀 🛸 💎 👑 🔮',
+  'Hands':'👍 👎 👌 ✌️ 🤞 🤟 🤘 👋 👏 🙌 🙏 💪 ✋ 👀 💅 🤝',
+  'Symbols':'💯 ❗ ❓ ‼️ 💤 💢 💥 💫 💬 💭 ✅ ❌ ⭕ 🆒 🆗 🔔 🎵 🎶 ♻️ ☮️'};
+const KAOMOJI={
+  'Happy':['(◕‿◕)','(＾▽＾)','(≧▽≦)','ヽ(・∀・)ﾉ','(✿◠‿◠)','(´｡• ᵕ •｡`)','٩(◕‿◕)۶','(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧','(*≧ω≦*)','＼(^o^)／','✧*｡٩(ˊᗜˋ*)و✧*｡','(๑˃ᴗ˂)ﻭ'],
+  'Love':['(♡˙︶˙♡)','(｡♥‿♥｡)','(´∀｀)♡','(っ˘з(˘⌣˘ ) ♡','♡(ŐωŐ人)','(≧◡≦) ♡','( ˘ ³˘)♥','(づ｡◕‿‿◕｡)づ','(灬º‿º灬)♡'],
+  'Sad':['(╥﹏╥)','(ಥ﹏ಥ)','(｡•́︿•̀｡)','(´；ω；`)','(っ˘̩╭╮˘̩)っ','(T_T)','(︶︹︺)','( ´•̥̥̥ω•̥̥̥` )'],
+  'Angry':['(╬ Ò﹏Ó)','(ノಠ益ಠ)ノ彡┻━┻','(｀皿´＃)','٩(╬ʘ益ʘ╬)۶','(¬_¬)','(￣^￣)','┬─┬ノ( º _ ºノ)'],
+  'Shy':['(⁄ ⁄•⁄ω⁄•⁄ ⁄)','(〃▽〃)','(*/ω＼*)','(//▽//)','(￣▽￣*)ゞ','(〃ω〃)'],
+  'Animals':['ʕ•ᴥ•ʔ','(=^･ω･^=)','∪･ω･∪','(・Θ・)','⊂(￣(ｴ)￣)⊃','>゜)))彡','( •ө• )','/ᐠ｡ꞈ｡ᐟ\\','ฅ^•ﻌ•^ฅ','(◕ᴥ◕)'],
+  'Cool & other':['¯\\_(ツ)_/¯','(•_•)','( •_•)>⌐■-■','(⌐■_■)','( ͡° ͜ʖ ͡°)','(ง •̀_•́)ง','ᕙ(⇀‸↼‶)ᕗ','(－_－) zzZ','(⊙_⊙)','(°ロ°)','(☞ﾟヮﾟ)☞','♪(┌・。・)┌']};
+/* insert text where the cursor is */
+function insertAt(ta,text,pad){
+  const s=ta.selectionStart??ta.value.length,e=ta.selectionEnd??ta.value.length,pre=ta.value.slice(0,s),post=ta.value.slice(e);
+  const a=pad&&pre&&!/\s$/.test(pre)?' ':'',b=pad&&!/^\s/.test(post)?' ':'';ta.value=pre+a+text+b+post;
+  const c=(pre+a+text+b).length;ta.focus();try{ta.setSelectionRange(c,c)}catch(err){}ta.dispatchEvent(new Event('input',{bubbles:true}))}
+const QUICK_EMO=[':)',':D',';)',':P','XD',':\'(','<3','(love)','(unicorn)','(duck)'];
+/* a row of quick emoticons + a "More" panel with Pixel / Emoji / Kaomoji tabs */
+function emoBar(ta){
+  let tab=S.emoTab||'pixel',cat=S.emoCat||'Faces';const panel=h('div',{class:'emopanel',hidden:true});
+  const btnFor=e=>h('button',{type:'button',title:e.n+'  '+e.code,'aria-label':e.n,onclick:()=>insertAt(ta,e.code,true)},h('img',{class:'emo',src:emoURL(e),alt:e.code}));
+  const more=h('button',{type:'button',class:'emomore','aria-expanded':'false',title:'More emoticons, emoji and kaomoji',onclick:()=>{panel.hidden=!panel.hidden;more.setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden)draw()}},'☺ More');
+  function draw(){
+    const tabs=h('div',{class:'emotabs',role:'tablist'},[['pixel','Pixel'],['emoji','Emoji 🦄'],['kao','Kaomoji (◕‿◕)']].map(([k,t])=>h('button',{type:'button',role:'tab','aria-selected':String(tab===k),class:tab===k?'on':'',onclick:()=>{tab=k;S.emoTab=k;saveS();draw()}},t)));
+    let body;
+    if(tab==='pixel')body=h('div',{class:'emogrid'},EMO.map(btnFor));
+    else if(tab==='emoji')body=h('div',null,h('div',{class:'emocats'},Object.keys(EMOJI).map(k=>h('button',{type:'button',class:cat===k?'on':'',onclick:()=>{cat=k;S.emoCat=k;saveS();draw()}},k))),
+      h('div',{class:'emogrid uni'},(EMOJI[cat]||'').split(' ').map(x=>h('button',{type:'button',title:x,onclick:()=>insertAt(ta,x,false)},x))));
+    else body=h('div',{class:'kaolist'},Object.entries(KAOMOJI).map(([g,L])=>h('div',null,h('b',{text:g}),h('div',{class:'kaos'},L.map(k=>h('button',{type:'button',title:'Add '+k,onclick:()=>insertAt(ta,k,true)},k))))));
+    panel.replaceChildren(tabs,body,h('button',{type:'button',class:'emoclose',onclick:()=>{panel.hidden=true;more.setAttribute('aria-expanded','false')}},'Close'))}
+  return h('div',{class:'emobar'},h('div',{class:'emos'},...QUICK_EMO.map(c=>btnFor(EMO.find(e=>e.code===c))),more),panel)}
+
+/* ============ @tags ============ */
+/* turn "@toto" into a clickable link to toto's profile (and emoticon codes into pictures) */
+function onlText(text){
+  text=String(text||'');const out=[],re=/(^|[^\w.@])@([A-Za-z0-9_.]{3,20})/g;let last=0,m;
+  while((m=re.exec(text))){const start=m.index+m[1].length,name=m[2].replace(/\.+$/,'');if(name.length<3)continue;
+    if(start>last)out.push(...emoNodes(text.slice(last,start)));
+    out.push(h('a',{class:'mention',href:'#',title:'View @'+name,onclick:e=>{e.preventDefault();e.stopPropagation();onlOpenByName(name)}},'@'+name));
+    last=start+1+name.length;re.lastIndex=last}
+  if(last<text.length)out.push(...emoNodes(text.slice(last)));return out}
+async function onlOpenByName(n){try{const u=await onlCall('query','users:byName',{name:n});if(u)onlProfile(u.id);else dlg.alert(`There's nobody called @${n} on XPerience Online.`,{icon:'info'})}catch(e){dlg.alert(onlErr(e),{icon:'warn'})}}
+/* type "@" in a box to get a list of people to tag */
+function onlMention(ta){
+  const box=h('div',{class:'mbox',hidden:true,role:'listbox','aria-label':'People to tag'});let items=[],sel=0,t=0,start=-1;
+  const close=()=>{box.hidden=true;items=[]};
+  const pick=u=>{const v=ta.value,c=ta.selectionStart;ta.value=v.slice(0,start)+'@'+u.name+' '+v.slice(c);const pos=start+u.name.length+2;ta.focus();try{ta.setSelectionRange(pos,pos)}catch(e){}close()};
+  const draw=()=>box.replaceChildren(h('small',{class:'dim',text:'Tag someone:'}),...items.map((u,i)=>h('button',{type:'button',role:'option','aria-selected':String(i===sel),class:'mitem'+(i===sel?' on':''),onmousedown:e=>{e.preventDefault();pick(u)}},onlAv(u),h('b',{text:'@'+u.name}),u.friend==='friends'?h('small',{text:'friend'}):'')));
+  ta.addEventListener('input',()=>{const c=ta.selectionStart,m=ta.value.slice(0,c).match(/(^|[\s(])@([A-Za-z0-9_.]{1,20})$/);
+    if(!m||!onlTok()){close();return}start=c-m[2].length-1;clearTimeout(t);
+    t=setTimeout(async()=>{try{const L=await onlCall('query','users:search',{token:onlTok(),q:m[2]});items=L.sort((a,b)=>(b.friend==='friends')-(a.friend==='friends')).slice(0,6);sel=0;box.hidden=!items.length;draw()}catch(e){close()}},160)});
+  ta.addEventListener('keydown',e=>{if(box.hidden||!items.length)return;
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();sel=(sel+(e.key==='ArrowDown'?1:items.length-1))%items.length;draw()}
+    else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();e.stopImmediatePropagation();pick(items[sel])}
+    else if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();close()}},true);
+  ta.addEventListener('blur',()=>setTimeout(close,200));
+  return box}
+
+/* ============ notifications (🔔) ============ */
+const NVERB={mention:'tagged you',comment:'commented on your post',reply:'replied to you',like:'liked your post',clike:'liked your comment',freply:'replied to your XP Boards post'};
+const NICON={mention:'🏷',comment:'💬',reply:'↩',like:'♥',clike:'♥',freply:'🗂'};
+const onlOpenTarget=t=>{if(!t)return;if(t.type==='ppost')WM.open('ppost',{id:t.id});else if(t.type==='fpost')WM.open('forum',{post:t.id})};
+APPS.notifs={title:'Notifications',icon:'messenger',w:380,h:480,minW:300,minH:300,single:true,key:()=>'x',render(win){
+  win.body.style.padding='0';const host=h('div',{class:'onl',style:'height:100%'});win.body.append(host);
+  onlGate(host,()=>{const list=h('div',{class:'nlist'});let marked=false;
+    host.replaceChildren(h('div',{class:'grp',text:'🔔 Notifications'}),list);
+    onlSub('notifs:list',{token:onlTok()},(L,e)=>{if(e){list.replaceChildren(h('div',{class:'onlerr',text:onlErr(e)}));return}if(!L)return;
+      list.replaceChildren(...(L.length?L.map(n=>h('button',{class:'nrow'+(n.read?'':' new'),onclick:()=>onlOpenTarget(n.target)},onlAv(n.from),
+        h('div',{style:'min-width:0;flex:1;text-align:left'},h('div',null,h('b',{text:n.from.name}),' '+NVERB[n.kind]+' '+(NICON[n.kind]||'')),n.text?h('small',{class:'ntext',text:'“'+n.text+'”'}):'',h('small',{class:'dim',text:onlAgo(n.at)})))):
+        [h('div',{class:'emptymsg',style:'padding:24px',text:'Nothing yet. When someone tags you, replies or likes your stuff, it shows up here.'})]));
+      if(!marked&&L.some(n=>!n.read)){marked=true;setTimeout(()=>onlCall('mutation','notifs:markAllRead',{token:onlTok()}).catch(()=>{}),1500)}},win)
+  },win,{why:'to see your notifications'})}};
+
+/* ============ group chats ============ */
+function groupFaces(faces,size=32){return h('span',{class:'gfaces',style:`--gs:${size}px`},faces.slice(0,3).map(u=>onlAv(u)))}
+/* start a group, or add people to one */
+APPS.newgroup={title:'New group chat',icon:'messenger',w:380,h:520,minW:300,minH:360,key:p=>'ng:'+(p.groupId||'new'),render(win,p){
+  win.body.style.padding='0';const host=h('div',{class:'onl',style:'height:100%'});win.body.append(host);
+  if(p.groupId)win.setTitle('Add people to the group');
+  onlGate(host,()=>{
+    const chosen=new Set(),name=h('input',{class:'inp',maxlength:40,placeholder:'Group name (e.g. the duck squad 🦆)','aria-label':'Group name'}),list=h('div',{class:'nglist'}),msg=h('div',{class:'onlerr',role:'alert'});
+    const go=h('button',{class:'btn',style:'font-weight:700'},p.groupId?'＋ Add to group':'👥 Start group chat');
+    let skip=new Set(p.have||[]);
+    onlCall('query','friends:list',{token:onlTok()}).then(L=>{const fr=(L&&L.friends||[]).filter(u=>!skip.has(u.id));
+      list.replaceChildren(...(fr.length?fr.map(u=>{const cb=h('input',{type:'checkbox','aria-label':u.name,onchange:e=>{e.target.checked?chosen.add(u.id):chosen.delete(u.id);go.disabled=!chosen.size}});
+        return h('label',{class:'ngrow'},cb,onlAv(u),h('span',{text:u.name}))}):[h('div',{class:'emptymsg',text:p.groupId?'All your friends are already in this group.':'You need friends first! Add people in 👥 Friends.'})]))}).catch(e=>msg.textContent=onlErr(e));
+    go.disabled=true;
+    go.onclick=async()=>{go.disabled=true;msg.textContent='';try{
+      if(p.groupId){await onlCall('mutation','groups:add',{token:onlTok(),groupId:p.groupId,members:[...chosen]});win.close()}
+      else{const id=await onlCall('mutation','groups:create',{token:onlTok(),name:name.value,members:[...chosen]});sfx('chime');win.close();WM.open('gchat',{id})}}
+      catch(e){msg.textContent=onlErr(e);go.disabled=false}};
+    host.replaceChildren(h('div',{class:'col',style:'gap:8px;padding:10px;height:100%;box-sizing:border-box'},
+      p.groupId?'':h('label',{class:'col'},h('b',{text:'Name'}),name),h('b',{text:p.groupId?'Pick friends to add':'Pick friends to chat with'}),list,msg,
+      h('small',{class:'dim',text:'You can only add your friends. Anyone in the group can add their own friends later.'}),h('div',{class:'row',style:'justify-content:flex-end'},go)))
+  },win,{why:'to start group chats'})}};
+APPS.gchat={title:'Group chat',icon:'messenger',w:460,h:540,minW:320,minH:340,key:p=>'g:'+p.id,render(win,p){
+  win.body.style.padding='0';const host=h('div',{style:'height:100%;display:flex;flex-direction:column'});win.body.append(host);
+  onlGate(host,me=>{
+    const log=h('div',{class:'log',role:'log','aria-live':'polite'}),ta=h('textarea',{class:'inp','aria-label':'Message',maxlength:1000,placeholder:'Message the group… (type @ to tag)'}),info=h('div',{class:'typ'});
+    const head=h('div',{class:'chead'}),panel=h('div',{class:'gpanel',hidden:true}),sendB=h('button',{class:'btn'},'Send');let last=null,readAt=0,lastCount=-1,d=null;
+    async function send(){const t=ta.value.trim();if(!t)return;sendB.disabled=true;try{await onlCall('mutation','groups:send',{token:onlTok(),groupId:p.id,body:t});ta.value='';sfx('blipg')}catch(e){info.textContent='⚠ '+onlErr(e);sfx('error')}finally{sendB.disabled=false;ta.focus()}}
+    sendB.onclick=send;const mbox=onlMention(ta);ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
+    host.replaceChildren(h('div',{class:'chat'},head,panel,log,info,h('div',{class:'inb'},emoBar(ta),mbox,ta,sendB)));
+    function drawPanel(){if(!d)return;panel.replaceChildren(h('div',{class:'row',style:'flex-wrap:wrap;gap:4px'},
+        h('button',{class:'btn sm',onclick:()=>WM.open('newgroup',{groupId:p.id,have:d.members.map(m=>m.id)})},'＋ Add friends'),
+        h('button',{class:'btn sm',onclick:async()=>{const n=await dlg.prompt('New name for the group:',{value:d.name,max:40});if(n==null)return;onlCall('mutation','groups:rename',{token:onlTok(),groupId:p.id,name:n}).catch(e=>dlg.alert(onlErr(e),{icon:'warn'}))}},'✏ Rename'),
+        h('button',{class:'btn sm',onclick:async()=>{if(await dlg.confirm(`Leave "${d.name}"? You won't get its messages any more.`,{icon:'warn',ok:'Leave',cancel:'Stay'}))try{await onlCall('mutation','groups:leave',{token:onlTok(),groupId:p.id});win.close()}catch(e){dlg.alert(onlErr(e),{icon:'warn'})}}},'🚪 Leave group')),
+      h('div',{class:'gmembers'},d.members.map(m=>h('div',{class:'co',onclick:()=>onlProfile(m.id)},onlAv(m),h('div',{style:'min-width:0;flex:1'},h('b',{text:m.name+(m.id===me.id?' (you)':'')}),h('small',{text:m.owner?'⭐ runs the group':m.mood||''})),
+        m.friend!=='self'&&m.friend!=='friends'?onlFriendBtn(m,m.friend):'',
+        d.isOwner&&m.id!==me.id?h('button',{class:'btn sm',onclick:async e=>{e.stopPropagation();if(await dlg.confirm(`Remove ${m.name} from the group?`,{icon:'warn',ok:'Remove',cancel:'Cancel'}))onlCall('mutation','groups:kick',{token:onlTok(),groupId:p.id,userId:m.id}).catch(er=>dlg.alert(onlErr(er),{icon:'warn'}))}},'Remove'):''))))}
+    onlSub('groups:get',{token:onlTok(),groupId:p.id},(g,e)=>{
+      if(e){info.textContent='⚠ '+onlErr(e);return}if(!g)return;
+      if(g.gone){host.replaceChildren(h('div',{class:'emptymsg',style:'padding:30px',text:'You\'re not in this group chat any more.'}));return}d=g;
+      win.setTitle(`${g.name} - Group chat`);
+      head.replaceChildren(groupFaces(g.members.filter(m=>m.id!==me.id)),h('div',{style:'min-width:0;flex:1'},h('b',{text:g.name}),h('small',{text:`${g.members.length} people · `+g.members.map(m=>m.name).slice(0,5).join(', ')+(g.members.length>5?'…':'')})),
+        h('button',{class:'btn sm','aria-expanded':String(!panel.hidden),onclick:e=>{panel.hidden=!panel.hidden;e.currentTarget.setAttribute('aria-expanded',String(!panel.hidden));drawPanel()}},'👥 Members'));
+      if(!panel.hidden)drawPanel();
+      const js=JSON.stringify(g.list);if(js!==last){const atBottom=log.scrollHeight-log.scrollTop-log.clientHeight<40||last===null;last=js;
+        log.replaceChildren(h('div',{class:'sys',text:'👥 Group chat with real people. '+ONL_SAFE}),...g.list.map(m=>m.system?h('div',{class:'sys',text:m.body}):m.hidden?h('div',{class:'sys',text:'(message from someone you blocked)'}):
+          h('div',{class:'m gm '+(m.mine?'me':'them')},m.mine?'':h('button',{class:'chav gav',title:m.from.name,onclick:()=>onlProfile(m.from.id)},onlAv(m.from)),h('div',null,h('small',{text:(m.mine?'You':m.from.name)+' · '+fmtTime(m.at)}),h('div',{},...onlText(m.body))))));
+        if(atBottom)log.scrollTop=log.scrollHeight;const lm=g.list[g.list.length-1];if(lastCount>=0&&g.list.length>lastCount&&lm&&!lm.mine&&!lm.system)sfx('msg');lastCount=g.list.length}
+      const newest=g.list.length?g.list[g.list.length-1].at:0;if(newest>readAt&&!win.min){readAt=newest;onlCall('mutation','groups:markRead',{token:onlTok(),groupId:p.id}).catch(()=>{})}
+    },win);setTimeout(()=>ta.focus(),60);
+  },win,{why:'to chat in groups'})}};
+
+/* who can see a photo post */
+const VISL={public:['🌍','Public','Everyone on XPerience Online'],friends:['👥','Friends','Only your friends'],private:['🔒','Only me','Only you']};
+function visSelect(val,onchange){return h('select',{class:'sel','aria-label':'Who can see this post',onchange:e=>onchange(e.target.value)},Object.entries(VISL).map(([k,[ic,t,d]])=>h('option',{value:k,selected:val===k,text:`${ic} ${t} (${d.toLowerCase()})`})))}
+
+addCSS(`.emobar{width:100%;display:flex;flex-direction:column;gap:4px}.emomore{border:1px solid var(--line)!important;border-radius:10px;padding:0 8px!important;font:inherit;font-size:12px;background:var(--card,#fff)!important;color:inherit}
+.emopanel{border:1px solid var(--line);border-radius:6px;background:var(--card,#fff);color:var(--ink,#222);padding:6px;max-height:210px;overflow:auto;display:flex;flex-direction:column;gap:6px}
+.emopanel[hidden]{display:none}.emotabs,.emocats{display:flex;gap:3px;flex-wrap:wrap}.emotabs button,.emocats button{border:1px solid var(--line);background:none;border-radius:10px;padding:1px 8px;cursor:pointer;font:inherit;font-size:12px;color:inherit}
+.emotabs button.on,.emocats button.on{background:#d8ebff;border-color:#3a7bd5;color:#10324f}.emogrid{display:flex;flex-wrap:wrap;gap:2px}.emogrid button{border:1px solid transparent;background:none;padding:2px;cursor:pointer;border-radius:4px}
+.emogrid button:hover,.kaos button:hover{border-color:var(--line);background:#eef5ff}.emogrid .emo{width:20px;height:20px}.emogrid.uni button{font-size:20px;line-height:1;width:32px;height:32px}
+.kaolist{display:flex;flex-direction:column;gap:4px}.kaolist b{font-size:11px;opacity:.7}.kaos{display:flex;flex-wrap:wrap;gap:3px}.kaos button{border:1px solid var(--line);background:none;border-radius:4px;padding:1px 5px;cursor:pointer;font-size:13px;color:inherit}
+.emoclose{align-self:flex-end;border:0;background:none;color:#3a6ea5;cursor:pointer;font:inherit;font-size:12px}
+.mention{color:#2b6fe0;font-weight:700;text-decoration:none;background:rgba(43,111,224,.1);border-radius:3px;padding:0 2px}.mention:hover{text-decoration:underline}
+.mbox{width:100%;display:flex;flex-direction:column;border:1px solid #9cb3d4;border-radius:6px;background:var(--card,#fff);color:var(--ink,#222);padding:3px;box-sizing:border-box;box-shadow:0 2px 8px rgba(0,0,0,.15)}.mbox[hidden]{display:none}
+.mitem{display:flex;gap:6px;align-items:center;border:0;background:none;padding:3px 6px;cursor:pointer;border-radius:4px;font:inherit;color:inherit;text-align:left}.mitem.on,.mitem:hover{background:#d8ebff}.mitem .avf{width:22px;height:22px}.mitem small{opacity:.6}
+.nlist{display:flex;flex-direction:column}.nrow{display:flex;gap:8px;align-items:flex-start;border:0;border-bottom:1px solid var(--line);background:none;padding:8px 10px;cursor:pointer;font:inherit;color:inherit}
+.nrow:hover{background:var(--soft)}.nrow.new{background:#eef6ff}.nrow .avf{width:34px;height:34px;flex:none}.nrow small{display:block}.ntext{opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbell{position:relative}.pbell b{position:absolute;top:-6px;right:-6px;background:#e0443e;color:#fff;border-radius:9px;font-size:10px;padding:0 5px;line-height:16px}
+.gfaces{display:inline-flex;flex:none}.gfaces .avf{width:var(--gs);height:var(--gs);border-radius:50%!important;border:2px solid var(--panel,#fff);margin-left:calc(var(--gs) * -.45);background:#fff}.gfaces .avf:first-child{margin-left:0}
+.gpanel{border-bottom:1px solid var(--line);padding:6px;background:var(--panel);color:var(--panel-ink);max-height:45%;overflow:auto;display:flex;flex-direction:column;gap:6px}.gpanel[hidden]{display:none}.gmembers .co{display:flex;gap:8px;align-items:center;padding:4px 6px;cursor:pointer;border-radius:3px}.gmembers .co:hover{background:var(--soft)}.gmembers .co .avf{width:30px;height:30px}.gmembers .co small{opacity:.7;display:block}
+.chat .m.gm{display:flex;gap:6px;align-items:flex-start}.chat .m.gm.them{background:#f1f1f1}.gav{border:0;background:none;padding:0;cursor:pointer;flex:none}.gav .avf{width:24px;height:24px}
+.nglist{flex:1;overflow:auto;border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column}.ngrow{display:flex!important;flex-direction:row!important;gap:8px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;font-weight:400!important}
+.ngrow .avf{width:28px;height:28px}.ngrow:hover{background:var(--soft)}
+.pcm.sub{margin-left:32px}.pcm .cacts{display:flex;gap:10px;align-items:center;font-size:11px}.cacts button{border:0;background:none;padding:0;cursor:pointer;font:inherit;color:#5a6b80}.cacts button:hover{text-decoration:underline}
+.cacts .clike.on{color:#ff2e63;font-weight:700}.rto{display:flex;gap:6px;align-items:center;font-size:12px;background:#eef5ff;color:#10324f;border-radius:4px;padding:2px 6px;width:100%;box-sizing:border-box}.rto button{border:0;background:none;cursor:pointer;color:#a33}
+.freply.sub{margin-left:34px;border-left:3px solid #c9d8ee}.flike.on{color:#ff2e63!important;font-weight:700}.fvis{font-size:12px;opacity:.8}.pgvis{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.55);color:#fff;border-radius:8px;font-size:11px;padding:0 4px}`);
 
 /* ============ XPerience Online: friends, profiles, photo posts ============ */
 /* someone's online picture: their own photo if they uploaded one, otherwise their avatar */
@@ -4921,10 +5107,10 @@ function onlLike(p,btn){const on=!btn.classList.contains('on');btn.classList.tog
 function onlPostCard(p){
   const like=h('button',{class:'plike'+(p.liked?' on':''),'aria-label':p.liked?'Unlike':'Like',onclick:e=>onlLike(p,e.currentTarget)},h('i',{text:'♥'}),h('span',{text:String(p.likes)}));
   return h('div',{class:'pcard'},
-    h('div',{class:'phead'},h('button',{class:'chav',title:'View profile',onclick:()=>onlProfile(p.author.id)},onlAv(p.author)),h('div',{style:'min-width:0;flex:1'},h('b',{class:'plink',text:p.author.name,onclick:()=>onlProfile(p.author.id)}),h('small',{text:(p.author.mood?p.author.mood+' · ':'')+onlAgo(p.createdAt)}))),
+    h('div',{class:'phead'},h('button',{class:'chav',title:'View profile',onclick:()=>onlProfile(p.author.id)},onlAv(p.author)),h('div',{style:'min-width:0;flex:1'},h('b',{class:'plink',text:p.author.name,onclick:()=>onlProfile(p.author.id)}),h('small',{text:(p.author.mood?p.author.mood+' · ':'')+onlAgo(p.createdAt)+(p.vis&&p.vis!=='public'?' · '+VISL[p.vis][0]+' '+VISL[p.vis][1]:'')}))),
     h('button',{class:'pimg',title:'Open post',onclick:()=>WM.open('ppost',{id:p.id})},h('img',{src:p.image,alt:p.caption||'Photo by '+p.author.name,loading:'lazy'})),
     h('div',{class:'pacts'},like,h('button',{class:'pcom',onclick:()=>WM.open('ppost',{id:p.id})},'💬 ',h('span',{text:String(p.comments)}))),
-    p.caption?h('div',{class:'pcap'},h('b',{text:p.author.name+' '}),...emoNodes(p.caption)):'',
+    p.caption?h('div',{class:'pcap'},h('b',{text:p.author.name+' '}),...onlText(p.caption)):'',
     p.comments?h('button',{class:'pmore',onclick:()=>WM.open('ppost',{id:p.id})},`View ${p.comments===1?'1 comment':'all '+p.comments+' comments'}`):'')}
 
 /* ---------- Chatzee: 📷 Feed tab (your profile on top, then everyone's posts) ---------- */
@@ -4933,6 +5119,8 @@ function chatzeeFeed(pane,host){const subs=[];const win={onClose:f=>subs.push(f)
   onlGate(box,(me,signOut)=>{
     const M=S.msn;M.feedScope=M.feedScope||'everyone';
     const reqs=h('div'),list=h('div',{class:'pfeed'}),cache=new Map();let stopFeed=null;
+    const bell=h('button',{class:'btn sm pbell',title:'Notifications','aria-label':'Notifications',onclick:()=>WM.open('notifs')},'🔔');
+    onlSub('notifs:unread',{token:onlTok()},L=>{const n=L?L.length:0;bell.replaceChildren('🔔',n?h('b',{text:n>9?'9+':String(n)}):'');bell.setAttribute('aria-label',n?`Notifications (${n} new)`:'Notifications')},win);
     const scopeBtns=h('div',{class:'pscope'});
     const drawScope=()=>scopeBtns.replaceChildren(...[['everyone','🌍 Everyone'],['friends','👥 Friends']].map(([k,t])=>h('button',{class:'tabbtn'+(M.feedScope===k?' on':''),onclick:()=>{M.feedScope=k;saveS();drawScope();sub()}},t)));
     function sub(){if(stopFeed)stopFeed();list.replaceChildren(h('div',{class:'onlwait',text:'Loading posts…'}));
@@ -4942,7 +5130,7 @@ function chatzeeFeed(pane,host){const subs=[];const win={onClose:f=>subs.push(f)
     win.onClose(()=>{if(stopFeed)stopFeed()});
     box.replaceChildren(h('div',{class:'pfeedwrap'},
       h('div',{class:'me pme'},h('button',{class:'chav',title:'My profile',onclick:()=>onlProfile(me.id)},onlAv(me)),h('div',{class:'meinfo'},h('b',{text:me.name+(me.admin?' (admin)':'')}),h('small',{text:me.mood||me.bio||'Signed in to XPerience Online'}),
-        h('div',{class:'row',style:'flex-wrap:wrap;gap:4px'},h('button',{class:'btn sm',onclick:()=>onlProfile(me.id)},'👤 My profile'),h('button',{class:'btn sm',onclick:()=>WM.open('editprof')},'🎨 Decorate'),h('button',{class:'btn sm',title:'Sign out of XPerience Online',onclick:signOut},'Sign out')))),
+        h('div',{class:'row',style:'flex-wrap:wrap;gap:4px'},bell,h('button',{class:'btn sm',onclick:()=>onlProfile(me.id)},'👤 My profile'),h('button',{class:'btn sm',onclick:()=>WM.open('editprof')},'🎨 Decorate'),h('button',{class:'btn sm',title:'Sign out of XPerience Online',onclick:signOut},'Sign out')))),
       h('button',{class:'btn pnew',onclick:()=>WM.open('newppost')},'📷 Share a picture'),reqs,scopeBtns,list,h('div',{class:'note',text:'🛡 '+ONL_SAFE})));
     drawScope();sub();
     onlSub('friends:list',{token:onlTok()},(L)=>{if(!L||!L.incoming.length){reqs.replaceChildren();return}
@@ -4963,14 +5151,18 @@ function chatzeeOnline(pane,host){const subs=[];const win={onClose:f=>subs.push(
     const stop=fn=>e=>{e.stopPropagation();fn(e)};
     box.replaceChildren(
       h('div',{class:'me'},onlAv(me),h('div',{class:'meinfo'},h('b',{text:me.name+(me.admin?' (admin)':'')}),h('small',{text:'Only friends can message each other.'}),h('div',{class:'row'},h('button',{class:'btn sm',onclick:()=>WM.open('editprof')},'⚙ Settings'),h('button',{class:'btn sm',onclick:signOut},'Sign out')))),
-      h('div',{style:'padding:6px 8px'},q),res,incoming,h('div',{class:'grp',text:'Chats'}),conv,friendsEl,outgoing,
+      h('div',{style:'padding:6px 8px'},q),res,incoming,h('div',{class:'grp row',style:'justify-content:space-between'},h('span',{text:'Chats'}),h('button',{class:'btn sm',onclick:()=>WM.open('newgroup',{})},'👥 New group')),conv,friendsEl,outgoing,
       h('div',{class:'note',text:'🛡 '+ONL_SAFE}));
     onlSub('friends:list',{token:onlTok()},(L,e)=>{if(e||!L)return;
       incoming.replaceChildren(...(L.incoming.length?[h('div',{class:'grp',text:`🔔 Friend requests (${L.incoming.length})`}),...L.incoming.map(u=>row(u,h('button',{class:'btn sm onlgo',onclick:stop(()=>onlFriendAct(u,'received'))},'Accept'),h('button',{class:'btn sm',onclick:stop(async()=>{try{await onlCall('mutation','friends:remove',{token:onlTok(),userId:u.id})}catch(er){dlg.alert(onlErr(er),{icon:'warn'})}})},'Decline')))]:[]));
       friendsEl.replaceChildren(h('div',{class:'grp',text:`Friends (${L.friends.length})`}),...(L.friends.length?L.friends.map(u=>row(u,h('button',{class:'btn sm',title:'Message '+u.name,onclick:stop(()=>WM.open('dm',{id:u.id,name:u.name}))},'💬'))):[h('div',{class:'emptymsg',text:'No friends yet. Find someone by their username above and send a friend request.'})]));
       outgoing.replaceChildren(...(L.outgoing.length?[h('div',{class:'grp',text:`Sent requests (${L.outgoing.length})`}),...L.outgoing.map(u=>row(u,h('button',{class:'btn sm',onclick:stop(()=>onlFriendAct(u,'sent'))},'Cancel')))]:[]))},win);
-    onlSub('dm:myConvos',{token:onlTok()},(L,e)=>{if(e){conv.replaceChildren(h('div',{class:'onlerr',text:onlErr(e)}));return}if(!L)return;
-      conv.replaceChildren(...(L.length?L.map(c=>h('div',{class:'co',tabindex:0,role:'button',onclick:()=>WM.open('dm',{id:c.other.id,name:c.other.name}),onkeydown:e=>{if(e.key==='Enter')WM.open('dm',{id:c.other.id,name:c.other.name})}},onlAv(c.other),h('div',{style:'min-width:0;flex:1'},h('b',{},c.unread?h('span',{class:'onldot',title:'New message'}):null,' '+c.other.name),h('small',{text:(c.blocked?'(blocked) ':'')+c.lastText})),h('small',{class:'dim',text:onlAgo(c.lastAt)}))):[h('div',{class:'emptymsg',text:'No chats yet. Message a friend with 💬.'})]))},win)
+    let dms=null,grs=[];
+    const drawConv=()=>{if(!dms)return;const items=[...dms.map(c=>({at:c.lastAt,el:h('div',{class:'co',tabindex:0,role:'button',onclick:()=>WM.open('dm',{id:c.other.id,name:c.other.name}),onkeydown:e=>{if(e.key==='Enter')WM.open('dm',{id:c.other.id,name:c.other.name})}},onlAv(c.other),h('div',{style:'min-width:0;flex:1'},h('b',{},c.unread?h('span',{class:'onldot',title:'New message'}):null,' '+c.other.name),h('small',{text:(c.blocked?'(blocked) ':'')+c.lastText})),h('small',{class:'dim',text:onlAgo(c.lastAt)}))})),
+        ...grs.map(g=>({at:g.lastAt,el:h('div',{class:'co',tabindex:0,role:'button',onclick:()=>WM.open('gchat',{id:g.id}),onkeydown:e=>{if(e.key==='Enter')WM.open('gchat',{id:g.id})}},groupFaces(g.faces,22),h('div',{style:'min-width:0;flex:1'},h('b',{},g.unread?h('span',{class:'onldot',title:'New message'}):null,' 👥 '+g.name),h('small',{text:g.lastText||`${g.count} people`})),h('small',{class:'dim',text:onlAgo(g.lastAt)}))}))].sort((x,y)=>y.at-x.at);
+      conv.replaceChildren(...(items.length?items.map(i=>i.el):[h('div',{class:'emptymsg',text:'No chats yet. Message a friend with 💬, or start a group chat.'})]))};
+    onlSub('groups:mine',{token:onlTok()},(L,e)=>{if(e||!L)return;grs=L;drawConv()},win);
+    onlSub('dm:myConvos',{token:onlTok()},(L,e)=>{if(e){conv.replaceChildren(h('div',{class:'onlerr',text:onlErr(e)}));return}if(!L)return;dms=L;drawConv()},win)
   },win,{why:'to find friends and chat with real people'})}
 
 /* ---------- someone's profile page ---------- */
@@ -4983,7 +5175,7 @@ APPS.uprofile={title:'Profile',icon:'messenger',w:560,h:640,minW:320,minH:360,ke
   if(onlTok())onlSub('users:me',{token:onlTok()},u=>{if(u!==undefined){me=u;draw()}},win);
   onlSub('profiles:get',{token:onlTok()||undefined,userId:p.id},(d,e)=>{if(e){host.replaceChildren(h('div',{class:'onlerr',style:'padding:16px',text:onlErr(e)}));return}if(d===undefined)return;pr=d;draw()},win);
   onlSub('profiles:posts',{token:onlTok()||undefined,userId:p.id},(L,e)=>{if(e||!L)return;posts=L;drawGrid()},win);
-  function drawGrid(){if(!pr||!posts)return;grid.replaceChildren(...(posts.length?posts.map(x=>h('button',{class:'pgi',title:x.caption||'Post',onclick:()=>WM.open('ppost',{id:x.id})},h('img',{src:x.image,alt:x.caption||'Post',loading:'lazy'}),h('span',{class:'pgs',text:`♥ ${x.likes}  💬 ${x.comments}`}))):
+  function drawGrid(){if(!pr||!posts)return;grid.replaceChildren(...(posts.length?posts.map(x=>h('button',{class:'pgi',title:x.caption||'Post',onclick:()=>WM.open('ppost',{id:x.id})},h('img',{src:x.image,alt:x.caption||'Post',loading:'lazy'}),x.vis&&x.vis!=='public'?h('span',{class:'pgvis',title:VISL[x.vis][2],text:VISL[x.vis][0]}):'',h('span',{class:'pgs',text:`♥ ${x.likes}  💬 ${x.comments}`}))):
     [h('div',{class:'emptymsg pgempty',text:pr.self?'You haven\'t posted anything yet.':'No posts yet.'},pr.self?h('div',null,h('button',{class:'btn',style:'margin-top:8px',onclick:()=>WM.open('newppost')},'📷 Share a picture')):'')]))}
   function draw(){
     if(pr===undefined)return;if(pr===null){host.replaceChildren(h('div',{class:'emptymsg',style:'padding:30px',text:'This person is not on XPerience Online any more.'}));return}
@@ -5004,17 +5196,20 @@ APPS.uprofile={title:'Profile',icon:'messenger',w:560,h:640,minW:320,minH:360,ke
         pr.stickers.length?h('div',{class:'pstick'},pr.stickers.map(s=>h('span',{text:s}))):'',
         h('div',{class:'pcount'},h('span',null,h('b',{text:String(pr.postCount)}),' posts'),h('span',null,h('b',{text:String(pr.friendCount)}),' friends')),
         h('div',{class:'row pbtns'},...btns),
-        pr.bio?h('div',{class:'pbio'},...emoNodes(pr.bio)):'',...info),
-      h('div',{class:'grp ptitle',text:'📷 Posts'}),pr.postsVisible?grid:h('div',{class:'emptymsg pgempty',text:`🔒 ${pr.name} only shares posts with friends.`})));
+        pr.bio?h('div',{class:'pbio'},...onlText(pr.bio)):'',...info),
+      h('div',{class:'grp ptitle',text:'📷 Posts'}),grid));
     drawGrid()}
 }};
 
-/* ---------- one photo post, with likes and comments ---------- */
-APPS.ppost={title:'Post',icon:'messenger',w:720,h:560,minW:320,minH:380,key:p=>'ppost:'+p.id,render(win,p){
+/* ---------- one photo post, with likes, comments and replies ---------- */
+APPS.ppost={title:'Post',icon:'messenger',w:740,h:580,minW:320,minH:380,key:p=>'ppost:'+p.id,render(win,p){
   win.body.style.padding='0';const host=h('div',{class:'ppost'});win.body.append(host);host.replaceChildren(h('div',{class:'onlwait',text:'Loading…'}));
-  const ta=h('textarea',{class:'inp',rows:2,maxlength:500,'aria-label':'Write a comment',placeholder:'Write a comment…'}),msg=h('div',{class:'onlerr'}),sendB=h('button',{class:'btn'},'Post');
-  const send=async()=>{const t=ta.value.trim();if(!t)return;sendB.disabled=true;try{await onlCall('mutation','profiles:comment',{token:onlTok(),postId:p.id,body:t});ta.value='';msg.textContent='';sfx('blipg')}catch(e){msg.textContent=onlErr(e)}finally{sendB.disabled=false;ta.focus()}};
-  sendB.onclick=send;ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
+  const ta=h('textarea',{class:'inp',rows:2,maxlength:500,'aria-label':'Write a comment',placeholder:'Write a comment… (type @ to tag someone)'}),msg=h('div',{class:'onlerr'}),sendB=h('button',{class:'btn'},'Post');
+  let replyTo=null;const rto=h('div',{class:'rto',hidden:true});
+  const setReply=c=>{replyTo=c;rto.hidden=!c;if(c){rto.replaceChildren(h('span',{style:'flex:1',text:`↩ Replying to ${c.author.name}`}),h('button',{title:'Cancel reply','aria-label':'Cancel reply',onclick:()=>setReply(null)},'✕'));
+    if(!ta.value.includes('@'+c.author.name))ta.value=`@${c.author.name} `+ta.value;ta.focus();try{ta.setSelectionRange(ta.value.length,ta.value.length)}catch(e){}}};
+  const send=async()=>{const t=ta.value.trim();if(!t)return;sendB.disabled=true;try{await onlCall('mutation','profiles:comment',{token:onlTok(),postId:p.id,body:t,parentId:replyTo?replyTo.id:undefined});ta.value='';msg.textContent='';setReply(null);sfx('blipg')}catch(e){msg.textContent=onlErr(e)}finally{sendB.disabled=false;ta.focus()}};
+  sendB.onclick=send;const mb=onlMention(ta),eb=emoBar(ta);ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}});
   let lastJs='';
   onlSub('profiles:getPost',{token:onlTok()||undefined,postId:p.id},(d,e)=>{
     if(e){host.replaceChildren(h('div',{class:'onlerr',style:'padding:16px',text:onlErr(e)}));return}if(d===undefined)return;
@@ -5022,38 +5217,44 @@ APPS.ppost={title:'Post',icon:'messenger',w:720,h:560,minW:320,minH:380,key:p=>'
     const js=JSON.stringify(d);if(js===lastJs)return;lastJs=js;
     win.setTitle(`${d.author.name}'s post`);
     const like=h('button',{class:'plike'+(d.liked?' on':''),disabled:!d.signedIn,'aria-label':d.liked?'Unlike':'Like',onclick:e=>onlLike(d,e.currentTarget)},h('i',{text:'♥'}),h('span',{text:String(d.likes)}));
-    const list=h('div',{class:'pclist'},d.commentList.length?d.commentList.map(c=>h('div',{class:'pcm'},h('button',{class:'chav',onclick:()=>onlProfile(c.author.id)},onlAv(c.author)),h('div',{style:'min-width:0;flex:1'},h('div',null,h('b',{class:'plink',text:c.author.name+' ',onclick:()=>onlProfile(c.author.id)}),...emoNodes(c.body)),h('small',{class:'dim'},onlAgo(c.createdAt),
-      c.canDelete?h('a',{href:'#',onclick:async e=>{e.preventDefault();if(await dlg.confirm('Delete this comment?',{icon:'warn',ok:'Delete',cancel:'Keep'}))onlCall('mutation','profiles:removeComment',{token:onlTok(),commentId:c.id}).catch(er=>dlg.alert(onlErr(er),{icon:'warn'}))},text:' · Delete'}):'',
-      d.signedIn&&!c.canDelete?h('a',{href:'#',onclick:e=>{e.preventDefault();onlReport('comment',c.id,'this comment')},text:' · Report'}):'')))):[h('div',{class:'dim',style:'padding:8px 0',text:'No comments yet. Say something nice!'})]);
-    const keep=ta.value;
+    const cm=(c,sub)=>{const lk=h('button',{class:'clike'+(c.liked?' on':''),disabled:!d.signedIn,title:c.liked?'Unlike':'Like',onclick:async e=>{const b=e.currentTarget,on=!b.classList.contains('on');b.classList.toggle('on',on);b.textContent=`♥ ${c.likes-(c.liked?1:0)+(on?1:0)}`;
+        try{await onlCall('mutation','profiles:likeComment',{token:onlTok(),commentId:c.id})}catch(er){dlg.alert(onlErr(er),{icon:'warn'})}}},`♥ ${c.likes}`);
+      return h('div',{class:'pcm'+(sub?' sub':'')},h('button',{class:'chav',onclick:()=>onlProfile(c.author.id)},onlAv(c.author)),h('div',{style:'min-width:0;flex:1'},h('div',null,h('b',{class:'plink',text:c.author.name+' ',onclick:()=>onlProfile(c.author.id)}),...onlText(c.body)),
+        h('div',{class:'cacts'},h('span',{class:'dim',text:onlAgo(c.createdAt)}),lk,d.signedIn?h('button',{onclick:()=>setReply(c)},'Reply'):'',
+          c.canDelete?h('button',{onclick:async()=>{if(await dlg.confirm('Delete this comment?',{icon:'warn',ok:'Delete',cancel:'Keep'}))onlCall('mutation','profiles:removeComment',{token:onlTok(),commentId:c.id}).catch(er=>dlg.alert(onlErr(er),{icon:'warn'}))}},'Delete'):'',
+          d.signedIn&&!c.canDelete?h('button',{onclick:()=>onlReport('comment',c.id,'this comment')},'Report'):'')))};
+    const ids=new Set(d.commentList.map(c=>c.id)),tops=d.commentList.filter(c=>!c.parentId||!ids.has(c.parentId));
+    const list=h('div',{class:'pclist'},d.commentList.length?tops.flatMap(c=>[cm(c,false),...d.commentList.filter(x=>x.parentId===c.id).map(x=>cm(x,true))]):[h('div',{class:'dim',style:'padding:8px 0',text:'No comments yet. Say something nice!'})]);
+    const vis=VISL[d.vis]||VISL.public;
     host.replaceChildren(
       h('button',{class:'ppimg',title:'View full size',onclick:()=>onlShowPic(d.image,`${d.author.name}'s picture`)},h('img',{src:d.image,alt:d.caption||'Photo'})),
       h('div',{class:'ppside'},
-        h('div',{class:'phead'},h('button',{class:'chav',onclick:()=>onlProfile(d.author.id)},onlAv(d.author)),h('div',{style:'min-width:0;flex:1'},h('b',{class:'plink',text:d.author.name,onclick:()=>onlProfile(d.author.id)}),h('small',{text:fmtDate(d.createdAt)+' '+fmtTime(d.createdAt)})),
+        h('div',{class:'phead'},h('button',{class:'chav',onclick:()=>onlProfile(d.author.id)},onlAv(d.author)),h('div',{style:'min-width:0;flex:1'},h('b',{class:'plink',text:d.author.name,onclick:()=>onlProfile(d.author.id)}),h('small',{text:`${fmtDate(d.createdAt)} ${fmtTime(d.createdAt)} · ${vis[0]} ${vis[1]}`})),
           d.canDelete?h('button',{class:'btn sm',onclick:async()=>{if(await dlg.confirm('Delete this post? This cannot be undone.',{icon:'warn',ok:'Delete',cancel:'Keep'}))try{await onlCall('mutation','profiles:removePost',{token:onlTok(),postId:d.id});win.close()}catch(er){dlg.alert(onlErr(er),{icon:'warn'})}}},'Delete'):
           d.signedIn?h('button',{class:'btn sm',onclick:()=>onlReport('photo',d.id,'this post')},'Report'):''),
-        d.caption?h('div',{class:'pcap'},...emoNodes(d.caption)):'',
+        d.mine?h('label',{class:'row fvis',style:'padding:0 10px 6px'},'Who can see this:',visSelect(d.vis,v=>onlCall('mutation','profiles:setVisibility',{token:onlTok(),postId:d.id,vis:v}).then(()=>sfx('save')).catch(er=>dlg.alert(onlErr(er),{icon:'warn'})))):'',
+        d.caption?h('div',{class:'pcap'},...onlText(d.caption)):'',
         h('div',{class:'pacts'},like,h('span',{class:'dim',text:`💬 ${d.comments}`})),
-        list,d.signedIn?h('div',{class:'pcbox'},ta,sendB):h('small',{class:'dim',text:'Sign in to XPerience Online to like and comment.'}),msg));
-    ta.value=keep;list.scrollTop=list.scrollHeight},win)}};
+        list,d.signedIn?h('div',{class:'pcbox'},rto,mb,eb,ta,sendB):h('small',{class:'dim',style:'padding:8px',text:'Sign in to XPerience Online to like and comment.'}),msg));
+    list.scrollTop=list.scrollHeight},win)}};
 
 /* ---------- share a new picture ---------- */
 APPS.newppost={title:'New post',icon:'paint',w:440,h:600,minW:320,minH:420,single:true,key:()=>'x',render(win){
   win.body.style.padding='0';const host=h('div',{class:'onl',style:'height:100%'});win.body.append(host);
   onlGate(host,me=>{
     let file=null,url='';const prev=h('div',{class:'npprev'}),err=h('div',{class:'onlerr',role:'alert'}),btn=h('button',{class:'btn',style:'font-weight:700',disabled:true},'📷 Share');
-    const cap=h('textarea',{class:'inp',rows:3,maxlength:500,'aria-label':'Caption',placeholder:'Write a caption… (optional)'});
+    const cap=h('textarea',{class:'inp',rows:3,maxlength:500,'aria-label':'Caption',placeholder:'Write a caption… type @ to tag friends (optional)'});let vis='public';
+    const visBox=h('span');onlCall('query','profiles:get',{token:onlTok(),userId:me.id}).then(pr=>{if(pr&&pr.postsFor==='friends'&&vis==='public')vis='friends';visBox.replaceChildren(visSelect(vis,v=>vis=v))}).catch(()=>visBox.replaceChildren(visSelect(vis,v=>vis=v)));visBox.replaceChildren(visSelect(vis,v=>vis=v));
     const pick=h('input',{type:'file',accept:'image/*',style:'display:none',onchange:()=>{set(pick.files[0]);pick.value=''}});
     async function set(f){if(!f)return;err.textContent='';try{const p=await onlPrepImg(f);if(url)URL.revokeObjectURL(url);file=p;url=URL.createObjectURL(p);draw()}catch(e){err.textContent=onlImgErr(e)}}
     function draw(){btn.disabled=!file;prev.replaceChildren(file?h('img',{src:url,alt:'Your picture'}):h('div',{class:'npempty'},h('b',{text:'🖼'}),h('span',{text:'Click to choose a picture'}),h('small',{text:'or drag one here, or paste with Ctrl+V'})),file?h('button',{class:'btn sm npchange',onclick:e=>{e.stopPropagation();pick.click()}},'Change'):'')}
     prev.onclick=()=>{if(!file)pick.click()};prev.ondragover=e=>{e.preventDefault();prev.classList.add('over')};prev.ondragleave=()=>prev.classList.remove('over');prev.ondrop=e=>{e.preventDefault();prev.classList.remove('over');set(e.dataTransfer.files[0])};
     host.onpaste=e=>{const im=[...((e.clipboardData||{}).items||[])].find(i=>i.type.startsWith('image/'));if(im){e.preventDefault();set(im.getAsFile())}};
     btn.onclick=async()=>{btn.disabled=true;err.textContent='';try{btn.textContent='Uploading…';const id=await onlUpload(file);btn.textContent='Posting…';
-      const pid=await onlCall('mutation','profiles:createPost',{token:onlTok(),image:id,caption:cap.value});sfx('chime');URL.revokeObjectURL(url);win.close();WM.open('ppost',{id:pid})}
+      const pid=await onlCall('mutation','profiles:createPost',{token:onlTok(),image:id,caption:cap.value,vis});sfx('chime');URL.revokeObjectURL(url);win.close();WM.open('ppost',{id:pid})}
       catch(e){err.textContent=onlImgErr(e);btn.disabled=false;btn.textContent='📷 Share';sfx('error')}};
     host.replaceChildren(h('div',{class:'col',style:'gap:8px;padding:10px;height:100%;box-sizing:border-box'},
-      h('div',{class:'row'},onlAv(me),h('b',{text:me.name})),prev,pick,cap,err,
-      h('small',{class:'dim',text:me.postsFor==='friends'?'🔒 Only your friends will see this.':'🌍 Everyone on XPerience Online can see this. You can change that in 🎨 Decorate → Privacy.'}),
+      h('div',{class:'row'},onlAv(me),h('b',{text:me.name})),prev,pick,onlMention(cap),cap,emoBar(cap),h('label',{class:'row',style:'flex-wrap:wrap;gap:6px'},h('b',{text:'Who can see this:'}),visBox),err,
       h('small',{class:'dim',text:'🛡 Don\'t share pictures that show where you live or go to school.'}),h('div',{class:'row',style:'justify-content:flex-end'},btn)));draw()},win,{why:'to share pictures'})}};
 
 /* ---------- decorate my profile ---------- */
@@ -5085,7 +5286,7 @@ APPS.editprof={title:'Decorate my profile',icon:'paint',w:560,h:640,minW:340,min
       const font=h('select',{class:'sel','aria-label':'Font',onchange:e=>{st.font=e.target.value;drawPrev()}},Object.keys(PFONTS).map(k=>h('option',{value:k,selected:st.font===k,text:PFONTS[k][0]})));
       const sticks=h('div',{class:'estick'});const drawSt=()=>sticks.replaceChildren(...PSTICK.map(s=>h('button',{class:'chip'+(st.stickers.includes(s)?' on':''),'aria-pressed':st.stickers.includes(s)?'true':'false',onclick:()=>{const i=st.stickers.indexOf(s);if(i>=0)st.stickers.splice(i,1);else if(st.stickers.length<8)st.stickers.push(s);else{msg.textContent='You can pick up to 8 stickers.';return}msg.textContent='';drawSt();drawPrev()}},s)));drawSt();
       // privacy
-      const postsFor=h('select',{class:'sel','aria-label':'Who can see my posts',onchange:e=>st.postsFor=e.target.value},h('option',{value:'everyone',text:'Everyone on XPerience Online',selected:st.postsFor!=='friends'}),h('option',{value:'friends',text:'Only my friends',selected:st.postsFor==='friends'}));
+      const postsFor=h('select',{class:'sel','aria-label':'Who can see my posts',onchange:e=>st.postsFor=e.target.value},h('option',{value:'everyone',text:'🌍 Public',selected:st.postsFor!=='friends'}),h('option',{value:'friends',text:'👥 Friends',selected:st.postsFor==='friends'}));
       const reqFrom=h('select',{class:'sel','aria-label':'Who can send me friend requests',onchange:e=>st.dmsFrom=e.target.value},h('option',{value:'everyone',text:'Anyone',selected:st.dmsFrom!=='nobody'}),h('option',{value:'nobody',text:'Nobody right now',selected:st.dmsFrom==='nobody'}));
       const bl=h('div',{class:'col'});onlCall('query','users:myBlocks',{token:onlTok()}).then(L=>bl.replaceChildren(...(L.length?L.map(u=>h('div',{class:'row'},h('span',{text:u.name,style:'flex:1'}),h('button',{class:'btn sm',onclick:async e=>{const r=e.currentTarget.closest('.row');await onlCall('mutation','users:unblock',{token:onlTok(),userId:u.id}).catch(()=>{});r.remove()}},'Unblock'))):[h('small',{class:'dim',text:'You have not blocked anyone.'})]))).catch(()=>{});
       const save=h('button',{class:'btn',style:'font-weight:700',onclick:async()=>{save.disabled=true;msg.textContent='';
@@ -5096,7 +5297,7 @@ APPS.editprof={title:'Decorate my profile',icon:'paint',w:560,h:640,minW:340,min
         sec('🖼 Pictures',picRow('photo','Profile picture',400,400),picRow('banner','Cover picture',1200,400),h('small',{class:'dim',text:'No profile picture? Pick one of these instead:'}),avs),
         sec('💬 About me',h('label',{class:'col'},'Mood',mood),moods,h('label',{class:'col'},'Bio',bio),h('label',{class:'col'},'🎵 Listening to',inp('song',80,'song or artist')),h('label',{class:'col'},'✨ Things I like',inp('interests',160,'ducks, watermelons, games…'))),
         sec('🎨 Look',h('b',{text:'Theme'}),themes,h('b',{text:'Pattern'}),pats,h('label',{class:'col'},'Font',font),h('b',{text:'Stickers (up to 8)'}),sticks),
-        sec('🔒 Privacy',h('label',{class:'col'},'Who can see my posts',postsFor),h('label',{class:'col'},'Who can send me friend requests',reqFrom),h('b',{text:'Blocked people'}),bl)),
+        sec('🔒 Privacy',h('label',{class:'col'},'Default audience for new posts (you can still pick for each post)',postsFor),h('label',{class:'col'},'Who can send me friend requests',reqFrom),h('b',{text:'Blocked people'}),bl)),
         h('div',{class:'efoot'},msg,h('button',{class:'btn',onclick:()=>win.close()},'Close'),save)));drawPrev();
     }).catch(e=>host.replaceChildren(h('div',{class:'onlerr',style:'padding:16px',text:onlErr(e)})))
   },win,{why:'to decorate your profile'})}};
@@ -5130,7 +5331,7 @@ addCSS(`.avf.onlph{object-fit:cover;border-radius:4px;background:#fff}
 .ppost{height:100%;display:flex;background:var(--panel);color:var(--panel-ink)}.ppimg{flex:1.3;min-width:0;border:0;padding:0;background:#111;cursor:zoom-in;display:flex;align-items:center;justify-content:center}
 .ppimg img{max-width:100%;max-height:100%;object-fit:contain}.ppside{flex:1;min-width:240px;display:flex;flex-direction:column;border-left:1px solid var(--line)}
 .ppside .pcap{padding:6px 10px;border-bottom:1px solid var(--line)}.pclist{flex:1;overflow:auto;padding:6px 10px;display:flex;flex-direction:column;gap:8px}
-.pcm{display:flex;gap:6px}.pcm .avf{width:26px;height:26px}.pcm>div>div{overflow-wrap:anywhere}.pcbox{display:flex;gap:6px;padding:6px 8px;border-top:1px solid var(--line)}.pcbox textarea{flex:1;resize:none}
+.pcm{display:flex;gap:6px}.pcm .avf{width:26px;height:26px}.pcm>div>div{overflow-wrap:anywhere}.pcbox{display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px;border-top:1px solid var(--line)}.pcbox textarea{flex:1;resize:none}
 .small .ppost,.ppost.narrow{flex-direction:column}
 .npprev{position:relative;flex:1;min-height:180px;border:2px dashed #9cb3d4;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#f7faff;overflow:hidden;cursor:pointer}
 .npprev.over{background:#e3efff;border-color:#3a7bd5}.npprev img{max-width:100%;max-height:100%;object-fit:contain}.npempty{display:flex;flex-direction:column;align-items:center;gap:4px;color:#3a5a80}.npempty b{font-size:40px}

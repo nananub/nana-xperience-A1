@@ -14,7 +14,9 @@ import type * as dm from "../dm.js";
 import type * as files from "../files.js";
 import type * as forum from "../forum.js";
 import type * as friends from "../friends.js";
+import type * as groups from "../groups.js";
 import type * as lib from "../lib.js";
+import type * as notifs from "../notifs.js";
 import type * as profiles from "../profiles.js";
 import type * as users from "../users.js";
 
@@ -31,7 +33,9 @@ declare const fullApi: ApiFromModules<{
   files: typeof files;
   forum: typeof forum;
   friends: typeof friends;
+  groups: typeof groups;
   lib: typeof lib;
+  notifs: typeof notifs;
   profiles: typeof profiles;
   users: typeof users;
 }>;

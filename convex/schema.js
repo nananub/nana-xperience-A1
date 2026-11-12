@@ -50,6 +50,8 @@ export default defineSchema({
     createdAt: v.number(),
     hidden: v.optional(v.boolean()),
     images: v.optional(v.array(v.object({ id: v.id("_storage"), url: v.string() }))),
+    parentId: v.optional(v.id("replies")),   // answering another reply
+    likeCount: v.optional(v.number()),
   }).index("by_post", ["postId", "createdAt"]),
 
   // a private conversation between two people (a = smaller id, b = bigger id)
@@ -99,11 +101,36 @@ export default defineSchema({
     likeCount: v.number(),
     commentCount: v.number(),
     hidden: v.optional(v.boolean()),
+    vis: v.optional(v.string()),              // "public" | "friends" | "private" (only me)
   }).index("by_author", ["authorId", "createdAt"]).index("by_created", ["createdAt"]),
   plikes: defineTable({ postId: v.id("pposts"), userId: v.id("users") }).index("by_post_user", ["postId", "userId"]),
   pcomments: defineTable({
     postId: v.id("pposts"), authorId: v.id("users"), body: v.string(), createdAt: v.number(), hidden: v.optional(v.boolean()),
+    parentId: v.optional(v.id("pcomments")),  // answering another comment
+    likeCount: v.optional(v.number()),
   }).index("by_post", ["postId", "createdAt"]),
+  // likes on comments and forum replies (target = the comment's or reply's id)
+  clikes: defineTable({ target: v.string(), userId: v.id("users") }).index("by_target_user", ["target", "userId"]),
+
+  // notifications: someone tagged you, replied, commented or liked
+  notifs: defineTable({
+    userId: v.id("users"), fromId: v.id("users"),
+    kind: v.string(),                         // "mention" | "comment" | "reply" | "like" | "clike" | "freply"
+    text: v.string(),
+    target: v.object({ type: v.string(), id: v.string() }), // type: "ppost" (photo post) | "fpost" (XP Boards post)
+    createdAt: v.number(), read: v.boolean(),
+  }).index("by_user", ["userId", "createdAt"]),
+
+  // group chats
+  groups: defineTable({
+    name: v.string(), ownerId: v.id("users"), createdAt: v.number(),
+    lastAt: v.number(), lastText: v.string(), lastFrom: v.optional(v.id("users")),
+  }),
+  gmembers: defineTable({ groupId: v.id("groups"), userId: v.id("users"), joinedAt: v.number(), readAt: v.number() })
+    .index("by_group", ["groupId"]).index("by_user", ["userId"]).index("by_group_user", ["groupId", "userId"]),
+  gmessages: defineTable({
+    groupId: v.id("groups"), from: v.optional(v.id("users")), body: v.string(), createdAt: v.number(), system: v.optional(v.boolean()),
+  }).index("by_group", ["groupId", "createdAt"]),
 
   // bug reports sent through "Report a Bug" (guests can send them too)
   bugs: defineTable({

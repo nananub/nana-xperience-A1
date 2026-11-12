@@ -106,3 +106,49 @@ export async function claimImages(ctx, me, ids, max) {
 export async function dropImages(ctx, ids) {
   for (const id of ids || []) if (await ctx.db.system.get("_storage", id)) await ctx.storage.delete(id);
 }
+
+// ---- @mentions and notifications ----
+// "@toto" in a message tags the person called toto
+export function mentionNames(text) {
+  const out = new Set(), re = /(^|[^\w.@])@([A-Za-z0-9_.]{3,20})/g;
+  let m;
+  while ((m = re.exec(String(text || "")))) out.add(m[2].replace(/\.+$/, "").toLowerCase());
+  return [...out].filter((n) => n.length >= 3).slice(0, 10);
+}
+
+export async function notify(ctx, toId, from, kind, text, target) {
+  if (!toId || toId === from._id) return false;
+  if (await blockedEitherWay(ctx, toId, from._id)) return false;
+  // don't repeat the same like/notification over and over
+  if (kind === "like" || kind === "clike") {
+    const recent = await ctx.db.query("notifs").withIndex("by_user", (q) => q.eq("userId", toId)).order("desc").take(60);
+    if (recent.some((n) => n.fromId === from._id && n.kind === kind && n.target.id === target.id && n.text === String(text || "").slice(0, 100))) return false;
+  }
+  await ctx.db.insert("notifs", { userId: toId, fromId: from._id, kind, text: String(text || "").slice(0, 100), target, createdAt: Date.now(), read: false });
+  return true;
+}
+
+// notify everyone tagged in a text; canSee(user) can stop people who couldn't open the thing
+export async function notifyMentions(ctx, me, text, target, skip = [], canSee = null) {
+  for (const n of mentionNames(text)) {
+    const u = await ctx.db.query("users").withIndex("by_name", (q) => q.eq("nameLower", n)).unique();
+    if (!u || u.banned || skip.includes(u._id)) continue;
+    if (canSee && !(await canSee(u))) continue;
+    await notify(ctx, u._id, me, "mention", text, target);
+  }
+}
+
+// like or unlike a comment / reply; returns true when it is now liked
+export async function toggleCommentLike(ctx, me, row) {
+  const target = String(row._id);
+  const has = await ctx.db.query("clikes").withIndex("by_target_user", (q) => q.eq("target", target).eq("userId", me._id)).first();
+  const n = row.likeCount || 0;
+  if (has) { await ctx.db.delete(has._id); await ctx.db.patch(row._id, { likeCount: Math.max(0, n - 1) }); return false; }
+  await ctx.db.insert("clikes", { target, userId: me._id });
+  await ctx.db.patch(row._id, { likeCount: n + 1 });
+  return true;
+}
+export async function likedByMe(ctx, me, id) {
+  if (!me) return false;
+  return !!(await ctx.db.query("clikes").withIndex("by_target_user", (q) => q.eq("target", String(id)).eq("userId", me._id)).first());
+}
